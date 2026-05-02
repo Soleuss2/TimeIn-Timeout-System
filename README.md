@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # TimeIn-Timeout System
 
 A mobile-first Expo Router app for campus access control with Student, Guard, and Admin portals.
@@ -90,4 +90,4 @@ A mobile-first Expo Router app for campus access control with Student, Guard, an
 =======
 # TimeIn-Timeout-System
 A student attendance management system built with React Native and Expo. Allows students to check-in/check-out, tracks attendance records, and provides real-time monitoring of student presence.
->>>>>>> a98de34604a8e244d65a09982d804b1405dbad09
+
