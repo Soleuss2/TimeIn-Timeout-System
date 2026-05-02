@@ -1,8 +1,22 @@
-# Welcome to your Expo app 👋
+# TimeIn-Timeout System
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A mobile-first Expo Router app for campus access control with Student, Guard, and Admin portals.
 
-## Get started
+## What this app includes
+
+- Login screen with mock Student / Guard / Admin accounts
+- Student portal with QR access card view
+- Guard portal using device camera QR scanning
+- Activity Logs page with filter controls and status summary
+- Admin dashboard (mock data UI)
+
+## Prerequisites
+
+- Node 18+ / npm
+- Expo CLI installed globally (optional)
+- Android or iOS device/emulator
+
+## Setup
 
 1. Install dependencies
 
@@ -10,41 +24,65 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Start the app
+2. Start the project
 
    ```bash
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+3. Open on device/emulator
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- Android: `a`
+- iOS: `i`
+- Web: `w`
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+> For the guard QR scanner, use a physical device or a simulator that supports camera permissions.
 
-## Get a fresh project
+## Available scripts
 
-When you're ready, run:
+- `npm start` — launch Expo development server
+- `npm run android` — open on Android
+- `npm run ios` — open on iOS
+- `npm run web` — open on web
+- `npm run lint` — run ESLint
+- `npm run reset-project` — reset starter project structure
 
-```bash
-npm run reset-project
-```
+## Dev notes
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+- App routes live under `app/` with Expo Router file-based routing
+- Screen components are in `app/screens/`
+- Mock data and authentication are in `services/mockData.ts` and `services/authService.ts`
+- Shared types are in `types/index.ts`
 
-## Learn more
+### Login credentials
 
-To learn more about developing your project with Expo, look at the following resources:
+- Student: `Student01` / `00000`
+- Guard: `Guard01` / `00000`
+- Admin: `admin01` / `00000`
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Push workflow
 
-## Join the community
+1. Add and commit changes
 
-Join our community of developers creating universal apps.
+   ```bash
+   git add .
+   git commit -m "Update activity screen layout and guard camera scanner"
+   ```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+2. Add remote if not existing
+
+   ```bash
+   git remote add origin https://github.com/Soleuss2/TimeIn-Timeout-System.git
+   ```
+
+3. Push to GitHub
+
+   ```bash
+   git push origin master
+   ```
+
+## Notes for other devs
+
+- Keep the `app/` folder structure consistent with Expo Router
+- Use `expo install expo-camera` for camera support
+- Run `npx tsc --noEmit` before pushing to catch TypeScript issues
