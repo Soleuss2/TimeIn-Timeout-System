@@ -61,26 +61,39 @@ A mobile-first Expo Router app for campus access control with Student, Guard, an
 - Guard: `Guard01` / `00000`
 - Admin: `admin01` / `00000`
 
-## Push workflow
+## Contributing
 
-1. Add and commit changes
+1. Pull the latest changes from main:
+   git checkout main
+   git pull origin main
 
-   ```bash
+2. Create a feature branch:
+   git checkout -b feature/your-feature-name
+
+3. Make your changes and add them:
    git add .
-   git commit -m "Update activity screen layout and guard camera scanner"
-   ```
+   or
+   git add specific-file.js
 
-2. Add remote if not existing
+4. Commit your changes with a clear message:
+   git commit -m "Brief description of what you changed"
 
-   ```bash
-   git remote add origin https://github.com/Soleuss2/TimeIn-Timeout-System.git
-   ```
+5. Push your branch to GitHub:
+   git push origin feature/your-feature-name
 
-3. Push to GitHub
+6. Open a Pull Request on GitHub:
+   - Go to the repository on GitHub
+   - Click "Pull requests" tab
+   - Click "New pull request"
+   - Set base: main and compare: feature/your-feature-name
+   - Click "Create pull request"
 
-   ```bash
-   git push origin master
-   ```
+7. Request a review from a team member
+
+8. After getting 1 approval and no conflicts, merge the PR
+
+9. Delete the feature branch (optional):
+   git branch -d feature/your-feature-name
 
 ## Notes for other devs
 
