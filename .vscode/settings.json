@@ -3,5 +3,9 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  "terminal.integrated.env.osx": {
+    "PATH": "/Users/macf/.local/node/bin:${env:PATH}"
+  },
+  "cmake.sourceDirectory": "/Users/macf/Desktop/TIME IN/TimeIn-Timeout-System/node_modules/expo-modules-core/android"
 }
