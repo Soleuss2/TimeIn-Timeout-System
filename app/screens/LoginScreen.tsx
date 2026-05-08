@@ -60,7 +60,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#11412a" />
+      {Platform.OS !== 'web' && <StatusBar barStyle="light-content" backgroundColor="#11412a" />}
       <View style={styles.backgroundShapeTop} />
       <View style={styles.backgroundShapeBottom} />
 
@@ -79,7 +79,7 @@ export default function LoginScreen() {
               <View style={styles.heroTopRow}>
                 <View style={styles.heroCopy}>
                   <Text style={styles.heroEyebrow}>Campus Access</Text>
-                  <Text style={styles.heroTitle}>QCU Time-In/Time-Out</Text>
+                  <Text style={styles.heroTitle}>QCU Parking System</Text>
                   <Text style={styles.heroSubtitle}>
                     Sign in to access your student, guard, or admin portal.
                   </Text>
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
   },
   heroTopRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
   heroCopy: {
@@ -273,14 +273,18 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   heroBadge: {
-    width: 68,
-    height: 68,
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   heroBadgeImage: {
-    width: '100%',
-    height: '100%',
+    width: '88%',
+    height: '88%',
+    borderRadius: 56,
   },
   heroPills: {
     flexDirection: 'row',

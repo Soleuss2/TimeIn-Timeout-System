@@ -42,6 +42,20 @@ export default function RootLayout() {
           headerBackTitle: 'Back'
         }} 
       />
+      <Stack.Screen 
+        name="add-visitor" 
+        options={{ 
+          title: 'Add Visitor',
+          headerBackTitle: 'Back'
+        }} 
+      />
+      <Stack.Screen 
+        name="guard-activity" 
+        options={{ 
+          title: 'Guard Activity',
+          headerBackTitle: 'Back'
+        }} 
+      />
     </Stack>
   );
 }

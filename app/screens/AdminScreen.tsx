@@ -1,16 +1,17 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  ScrollView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { MOCK_ACTIVITY_LOGS } from '../../services/mockData';
-import { Ionicons } from '@expo/vector-icons';
 
 export default function AdminScreen() {
   const router = useRouter();
@@ -20,7 +21,7 @@ export default function AdminScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#1d2934" />
+      {Platform.OS !== 'web' && <StatusBar barStyle="light-content" backgroundColor="#1d2934" />}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Admin Portal</Text>
         <TouchableOpacity style={styles.headerButton} onPress={() => {}}>

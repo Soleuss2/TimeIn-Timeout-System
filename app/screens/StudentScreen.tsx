@@ -56,7 +56,7 @@ export default function StudentScreen() {
   const [downloading, setDownloading] = useState(false);
 
   const qrPayload = JSON.stringify({
-    app: 'QCU Time-In/Time-Out',
+    app: 'QCU Parking System',
     role: student.role,
     studentId: student.id,
     username: student.username,
@@ -128,7 +128,7 @@ export default function StudentScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#11412a" />
+      {Platform.OS !== 'web' && <StatusBar barStyle="light-content" backgroundColor="#11412a" />}
       <View style={styles.backgroundShapeTop} />
       <View style={styles.backgroundShapeBottom} />
 

@@ -1,25 +1,51 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Camera, CameraView } from 'expo-camera';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  ScrollView,
-  Alert,
+    Alert,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { Camera, CameraView } from 'expo-camera';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { MOCK_ACTIVITY_LOGS } from '../../services/mockData';
+
+type ScannedPayload = {
+  app?: string;
+  role?: string;
+  studentId?: string;
+  username?: string;
+  name?: string;
+  plateNumber?: string | null;
+};
+
+function parseScannedPayload(data: string): ScannedPayload | null {
+  try {
+    const parsed = JSON.parse(data) as unknown;
+    if (parsed && typeof parsed === 'object') {
+      return parsed as ScannedPayload;
+    }
+  } catch (error) {
+    return null;
+  }
+
+  return null;
+}
+
+
+
 
 export default function GuardScreen() {
   const router = useRouter();
   const [plate, setPlate] = useState('');
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scannedData, setScannedData] = useState<string | null>(null);
+  const scannedPayload = scannedData ? parseScannedPayload(scannedData) : null;
 
   useEffect(() => {
     (async () => {
@@ -31,79 +57,143 @@ export default function GuardScreen() {
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     if (scannedData) return;
     setScannedData(data);
-    Alert.alert('Scanned QR code', data);
+    const parsed = parseScannedPayload(data);
+
+    Alert.alert(
+      'Scanned QR code',
+      parsed?.name
+        ? `${parsed.name}${parsed.studentId ? `\n${parsed.studentId}` : ''}`
+        : data,
+    );
   };
 
-  const scanStatus = scannedData
-    ? `Last scanned: ${scannedData}`
-    : 'Point the camera at the student QR code';
+  const handleManualSubmit = () => {
+    const trimmedPlate = plate.trim();
+
+    if (!trimmedPlate) {
+      Alert.alert('Validation', 'Please enter a plate number');
+      return;
+    }
+
+    Alert.alert('Manual entry saved', `Plate ${trimmedPlate.toUpperCase()} has been recorded.`);
+    setPlate('');
+  };
+
+  const handleResetScanner = () => {
+    setScannedData(null);
+    Alert.alert('Scanner reset', 'The camera is ready for the next QR code.');
+  };
+
+  const cameraStatusLabel =
+    hasPermission === null ? 'Waiting' : hasPermission ? 'Ready' : 'Denied';
+  const cameraStatusText =
+    hasPermission === true
+      ? 'Live camera access is active.'
+      : hasPermission === false
+        ? 'Enable camera access to scan QR codes.'
+        : 'Requesting camera permission...';
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#1f8e4d" />
+      <View style={styles.backgroundShapeTop} />
+      <View style={styles.backgroundShapeBottom} />
+
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Scanner</Text>
-          <Text style={styles.headerSubtitle}>Ready to scan student entry</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={20} color="#fff" />
+        </TouchableOpacity>
+        <View style={styles.headerCopy}>
+          <Text style={styles.headerTitle}>Guard Portal</Text>
+          <Text style={styles.headerSubtitle}>Gate Scanner</Text>
         </View>
-        <Ionicons name="scan-outline" size={28} color="#fff" />
+        <TouchableOpacity
+          style={styles.activityButton}
+          onPress={() => router.push({ pathname: '/guard-activity' })}
+        >
+          <Ionicons name="bar-chart-outline" size={20} color="#fff" />
+        </TouchableOpacity>
+        <Ionicons name="scan-outline" size={26} color="#fff" />
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{MOCK_ACTIVITY_LOGS.length}</Text>
-            <Text style={styles.statLabel}>Total Vehicles</Text>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.contentShell}>
+          <View style={styles.scannerCard}>
+            <View style={styles.scannerCaptureArea}>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderText}>
+                  <Text style={styles.cardLabel}>Live Scanner</Text>
+                  <Text style={styles.cardTitle}>Point camera at student QR</Text>
+                </View>
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{cameraStatusLabel.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <View style={styles.scannerStage}>
+                <View style={styles.scannerStageGlowTop} />
+                <View style={styles.scannerStageGlowBottom} />
+                <View style={styles.scannerFrame}>
+                  {Platform.OS === 'web' ? (
+                    <View style={styles.scannerFallback}>
+                      <Text style={styles.scannerFallbackText}>
+                        Camera scanner not supported on web. Use manual plate entry below.
+                      </Text>
+                    </View>
+                  ) : hasPermission === null ? (
+                    <View style={styles.scannerFallback}>
+                      <Text style={styles.scannerFallbackText}>
+                        Requesting camera permission...
+                      </Text>
+                    </View>
+                  ) : hasPermission === false ? (
+                    <View style={styles.scannerFallback}>
+                      <Text style={styles.scannerFallbackText}>Camera access denied</Text>
+                    </View>
+                  ) : (
+                    <CameraView
+                      style={styles.camera}
+                      facing="back"
+                      barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                      onBarcodeScanned={handleBarCodeScanned}
+                    />
+                  )}
+                </View>
+              </View>
+
+              <Text style={styles.scanStatus}>
+                {scannedData
+                  ? `Last scanned: ${scannedPayload?.name ?? 'QR code captured'}`
+                  : cameraStatusText}
+              </Text>
+
+              <TouchableOpacity style={styles.secondaryActionButton} onPress={handleResetScanner}>
+                <Text style={styles.secondaryActionText}>Reset Scanner</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.actionButton} onPress={() => router.push({ pathname: '/add-visitor' })}>
+                <Text style={styles.actionText}>Register & Log Visitor Profile</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>2</Text>
-            <Text style={styles.statLabel}>Inside Campus</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>3</Text>
-            <Text style={styles.statLabel}>Departed</Text>
+
+          <View style={styles.manualCard}>
+            <Text style={styles.cardLabel}>Manual Plate Entry</Text>
+            <Text style={styles.manualHint}>Use this when a visitor arrives without a QR pass.</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="E.G. ABC 1234"
+              placeholderTextColor="#9aa5b1"
+              value={plate}
+              onChangeText={setPlate}
+              autoCapitalize="characters"
+              returnKeyType="done"
+            />
+            <TouchableOpacity style={styles.submitButton} onPress={handleManualSubmit}>
+              <Text style={styles.submitText}>SUBMIT ENTRY</Text>
+            </TouchableOpacity>
           </View>
         </View>
-
-        <View style={styles.scannerCard}>
-          {hasPermission === null ? (
-            <View style={styles.scannerFrame}>
-              <Text style={styles.scannerLabel}>Requesting camera permission...</Text>
-            </View>
-          ) : hasPermission === false ? (
-            <View style={styles.scannerFrame}>
-              <Text style={styles.scannerLabel}>Camera access denied</Text>
-            </View>
-          ) : (
-            <View style={styles.scannerFrame}>
-              <CameraView
-                style={styles.camera}
-                facing="back"
-                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-                onBarcodeScanned={handleBarCodeScanned}
-              />
-            </View>
-          )}
-          <Text style={styles.scanStatus}>{scanStatus}</Text>
-        </View>
-
-        <View style={styles.manualCard}>
-          <Text style={styles.cardLabel}>Manual Plate Entry</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="E.G. ABC 1234"
-            placeholderTextColor="#9aa5b1"
-            value={plate}
-            onChangeText={setPlate}
-          />
-          <TouchableOpacity style={styles.submitButton} onPress={() => setPlate('')}>
-            <Text style={styles.submitText}>SUBMIT ENTRY</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.actionButton} onPress={() => router.push('/activity')}>
-          <Text style={styles.actionText}>Register & Log Visitor Profile</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -112,18 +202,69 @@ export default function GuardScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#eef3f6',
+    backgroundColor: '#eef4ef',
+  },
+  backgroundShapeTop: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(31, 142, 77, 0.08)',
+  },
+  backgroundShapeBottom: {
+    position: 'absolute',
+    bottom: 30,
+    left: -70,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(17, 65, 42, 0.05)',
+  },
+  container: {
+    flexGrow: 1,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 36,
+  },
+  contentShell: {
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
   },
   header: {
     backgroundColor: '#1f8e4d',
-    padding: 22,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 22,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  activityButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  headerCopy: {
+    flex: 1,
   },
   headerTitle: {
     color: '#fff',
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
   },
   headerSubtitle: {
@@ -131,93 +272,190 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
   },
-  container: {
-    padding: 20,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 20,
+  scannerCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 32,
     padding: 16,
-    marginRight: 10,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: '#e5ece7',
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 16,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
   },
-  statNumber: {
-    fontSize: 24,
+  scannerCaptureArea: {
+    backgroundColor: '#f8fbf9',
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#e4ede6',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  cardHeaderText: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  cardLabel: {
     color: '#1f8e4d',
+    fontSize: 11,
     fontWeight: '800',
-    marginBottom: 6,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#7b8a98',
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    marginBottom: 4,
   },
-  scannerCard: {
-    backgroundColor: '#fff',
-    borderRadius: 28,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 6,
+  cardTitle: {
+    color: '#14251b',
+    fontSize: 20,
+    fontWeight: '900',
+    lineHeight: 24,
+  },
+  badge: {
+    backgroundColor: '#dff3e7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  badgeText: {
+    color: '#1f8e4d',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.9,
+  },
+  scannerStage: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  scannerStageGlowTop: {
+    position: 'absolute',
+    top: 0,
+    right: 8,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(31, 142, 77, 0.08)',
+  },
+  scannerStageGlowBottom: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(22, 65, 41, 0.06)',
   },
   scannerFrame: {
-    height: 220,
-    borderRadius: 22,
-    backgroundColor: '#1f8e4d',
+    width: '100%',
+    height: 280,
+    borderRadius: 28,
+    backgroundColor: '#0b0f0d',
+    borderWidth: 1,
+    borderColor: '#e3ebe4',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
   },
-  scannerLabel: {
-    color: '#fff',
+  scannerFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  scannerFallbackText: {
+    marginTop: 10,
+    color: '#d5e8d9',
+    fontSize: 15,
     fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 21,
   },
   camera: {
     width: '100%',
     height: '100%',
   },
   scanStatus: {
-    marginTop: 16,
-    color: '#2d3a4b',
-    fontWeight: '600',
+    color: '#607181',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  secondaryActionButton: {
+    marginTop: 12,
+    backgroundColor: '#f8fbf9',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#dce6de',
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  secondaryActionText: {
+    color: '#216b43',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  actionButton: {
+    marginTop: 12,
+    backgroundColor: '#1f8e4d',
+    borderRadius: 16,
+    paddingVertical: 15,
+    alignItems: 'center',
+    shadowColor: '#1f8e4d',
+    shadowOpacity: 0.24,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  actionText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.4,
   },
   manualCard: {
-    backgroundColor: '#fff',
-    borderRadius: 28,
-    padding: 22,
-    marginBottom: 20,
+    backgroundColor: '#ffffff',
+    borderRadius: 32,
+    padding: 24,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: '#e5ece7',
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 5,
   },
-  cardLabel: {
-    color: '#2d3a4b',
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 16,
+  manualHint: {
+    color: '#607181',
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 14,
   },
   input: {
-    height: 52,
-    borderRadius: 16,
+    height: 54,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#dce3eb',
-    paddingHorizontal: 16,
+    borderColor: '#e4ede6',
+    paddingHorizontal: 14,
+    backgroundColor: '#f8fbf9',
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.2,
     marginBottom: 18,
-    backgroundColor: '#f8fafc',
-    color: '#2d3a4b',
   },
   submitButton: {
     backgroundColor: '#d7f3dc',
@@ -228,15 +466,6 @@ const styles = StyleSheet.create({
   submitText: {
     color: '#1f8e4d',
     fontWeight: '800',
-  },
-  actionButton: {
-    backgroundColor: '#1f8e4d',
-    borderRadius: 16,
-    paddingVertical: 18,
-    alignItems: 'center',
-  },
-  actionText: {
-    color: '#fff',
-    fontWeight: '800',
+    fontSize: 15,
   },
 });
