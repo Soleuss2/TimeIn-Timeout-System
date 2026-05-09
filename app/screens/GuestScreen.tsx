@@ -1,21 +1,22 @@
+import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  ScrollView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 
 export default function GuestScreen() {
   const router = useRouter();
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />
+      {Platform.OS !== 'web' && <StatusBar barStyle="dark-content" backgroundColor="#f8f9fa" />}
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Guest Access</Text>
         <Text style={styles.subtitle}>You have limited access in guest mode.</Text>
