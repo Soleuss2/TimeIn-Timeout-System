@@ -1,3 +1,3 @@
-import GuardScreen from './screens/GuardScreen';
+import GuardScreen from "./screens/GuardScreen";
 
 export default GuardScreen;

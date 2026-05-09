@@ -1,3 +1,3 @@
-import AddVisitorScreen from './screens/AddVisitorScreen';
+import AddVisitorScreen from "./screens/AddVisitorScreen";
 
 export default AddVisitorScreen;

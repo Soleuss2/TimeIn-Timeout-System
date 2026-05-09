@@ -1,28 +1,36 @@
-import React, { useState } from 'react';
-import styles from './AddVisitorScreen.web.module.css';
+import React, { useState } from "react";
+import styles from "./AddVisitorScreen.web.module.css";
 
 export default function AddVisitorScreen() {
-  const [visitorName, setVisitorName] = useState('');
-  const [visitorEmail, setVisitorEmail] = useState('');
-  const [visitorPhone, setVisitorPhone] = useState('');
-  const [visitPurpose, setVisitPurpose] = useState('');
+  const [visitorName, setVisitorName] = useState("");
+  const [visitorEmail, setVisitorEmail] = useState("");
+  const [visitorPhone, setVisitorPhone] = useState("");
+  const [visitPurpose, setVisitPurpose] = useState("");
 
   const handleAddVisitor = () => {
-    if (!visitorName.trim() || !visitorEmail.trim() || !visitorPhone.trim() || !visitPurpose.trim()) {
-      alert('Please fill in all fields');
+    if (
+      !visitorName.trim() ||
+      !visitorEmail.trim() ||
+      !visitorPhone.trim() ||
+      !visitPurpose.trim()
+    ) {
+      alert("Please fill in all fields");
       return;
     }
-    alert('Visitor added successfully');
-    setVisitorName('');
-    setVisitorEmail('');
-    setVisitorPhone('');
-    setVisitPurpose('');
+    alert("Visitor added successfully");
+    setVisitorName("");
+    setVisitorEmail("");
+    setVisitorPhone("");
+    setVisitPurpose("");
   };
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <button className={styles.backButton} onClick={() => window.history.back()}>
+        <button
+          className={styles.backButton}
+          onClick={() => window.history.back()}
+        >
           ← Back
         </button>
         <h1 className={styles.title}>Add Visitor</h1>

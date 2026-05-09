@@ -1,0 +1,276 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const ATTEMPT_RESET_DURATION_MS = 60 * 60 * 1000; // 1 hour
+
+// In-memory fallback storage for when AsyncStorage is unavailable
+const memoryStorage: { [key: string]: string } = {};
+
+interface LoginAttempt {
+  email: string;
+  timestamp: number;
+  isLocked: boolean;
+  lockUntil?: number;
+  attemptCount: number;
+}
+
+// Helper to safely get items from AsyncStorage with fallback
+const safeGetItem = async (key: string): Promise<string | null> => {
+  try {
+    return await AsyncStorage.getItem(key);
+  } catch (error) {
+    console.warn("⚠️ AsyncStorage.getItem failed, using fallback:", error);
+    return memoryStorage[key] || null;
+  }
+};
+
+// Helper to safely set items in AsyncStorage with fallback
+const safeSetItem = async (key: string, value: string): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(key, value);
+  } catch (error) {
+    console.warn("⚠️ AsyncStorage.setItem failed, using fallback:", error);
+    memoryStorage[key] = value;
+  }
+};
+
+// Helper to safely remove items from AsyncStorage with fallback
+const safeRemoveItem = async (key: string): Promise<void> => {
+  try {
+    await AsyncStorage.removeItem(key);
+  } catch (error) {
+    console.warn("⚠️ AsyncStorage.removeItem failed, using fallback:", error);
+    delete memoryStorage[key];
+  }
+};
+
+export const SecurityService = {
+  /**
+   * Check if an email is currently locked due to too many failed attempts
+   */
+  isAccountLocked: async (
+    email: string,
+  ): Promise<{ locked: boolean; minutesRemaining: number }> => {
+    try {
+      const storedAttempt = await safeGetItem(`login_attempt_${email}`);
+
+      if (!storedAttempt) {
+        return { locked: false, minutesRemaining: 0 };
+      }
+
+      const attempt: LoginAttempt = JSON.parse(storedAttempt);
+      const now = Date.now();
+
+      // Check if lockout has expired
+      if (attempt.isLocked && attempt.lockUntil && now > attempt.lockUntil) {
+        console.log("✅ Account lockout expired for:", email);
+        await safeRemoveItem(`login_attempt_${email}`);
+        return { locked: false, minutesRemaining: 0 };
+      }
+
+      if (attempt.isLocked) {
+        const minutesRemaining = Math.ceil((attempt.lockUntil! - now) / 60000);
+        console.warn(
+          "🔒 Account is locked for:",
+          email,
+          `(${minutesRemaining} minutes remaining)`,
+        );
+        return { locked: true, minutesRemaining };
+      }
+
+      // Check if attempts should be reset
+      if (now - attempt.timestamp > ATTEMPT_RESET_DURATION_MS) {
+        console.log("♻️ Resetting login attempts for:", email);
+        await safeRemoveItem(`login_attempt_${email}`);
+        return { locked: false, minutesRemaining: 0 };
+      }
+
+      return { locked: false, minutesRemaining: 0 };
+    } catch (error) {
+      console.error("❌ Error checking account lock:", error);
+      return { locked: false, minutesRemaining: 0 };
+    }
+  },
+
+  /**
+   * Record a failed login attempt
+   */
+  recordFailedAttempt: async (
+    email: string,
+  ): Promise<{ attemptsRemaining: number; isNowLocked: boolean }> => {
+    try {
+      const storedAttempt = await safeGetItem(`login_attempt_${email}`);
+      let attempt: LoginAttempt = {
+        email,
+        timestamp: Date.now(),
+        isLocked: false,
+        attemptCount: 0,
+      };
+
+      if (storedAttempt) {
+        attempt = JSON.parse(storedAttempt);
+        const now = Date.now();
+
+        // Reset if outside reset window
+        if (now - attempt.timestamp > ATTEMPT_RESET_DURATION_MS) {
+          attempt.attemptCount = 0;
+          attempt.isLocked = false;
+        }
+
+        attempt.attemptCount += 1;
+        attempt.timestamp = now;
+      } else {
+        attempt.attemptCount = 1;
+      }
+
+      // Lock account if max attempts reached
+      if (attempt.attemptCount >= MAX_LOGIN_ATTEMPTS) {
+        attempt.isLocked = true;
+        attempt.lockUntil = Date.now() + LOCKOUT_DURATION_MS;
+        console.error(
+          "🔒 Account locked due to too many failed attempts:",
+          email,
+        );
+
+        // Log security event
+        await SecurityService.logSecurityEvent({
+          type: "ACCOUNT_LOCKED",
+          email,
+          attempts: attempt.attemptCount,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      await safeSetItem(`login_attempt_${email}`, JSON.stringify(attempt));
+
+      const attemptsRemaining = Math.max(
+        0,
+        MAX_LOGIN_ATTEMPTS - attempt.attemptCount,
+      );
+      return {
+        attemptsRemaining,
+        isNowLocked: attempt.isLocked,
+      };
+    } catch (error) {
+      console.error("❌ Error recording failed attempt:", error);
+      return { attemptsRemaining: MAX_LOGIN_ATTEMPTS, isNowLocked: false };
+    }
+  },
+
+  /**
+   * Clear login attempts for an email (call after successful login)
+   */
+  clearLoginAttempts: async (email: string): Promise<void> => {
+    try {
+      await safeRemoveItem(`login_attempt_${email}`);
+      console.log("✅ Login attempts cleared for:", email);
+    } catch (error) {
+      console.error("❌ Error clearing login attempts:", error);
+    }
+  },
+
+  /**
+   * Validate email format
+   */
+  validateEmail: (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  },
+
+  /**
+   * Validate password strength
+   */
+  validatePasswordStrength: (
+    password: string,
+  ): { valid: boolean; message?: string } => {
+    if (password.length < 6) {
+      return {
+        valid: false,
+        message: "Password must be at least 6 characters long",
+      };
+    }
+
+    // Optional: Add more requirements
+    // if (!/[A-Z]/.test(password)) {
+    //   return { valid: false, message: 'Password must contain at least one uppercase letter' };
+    // }
+
+    return { valid: true };
+  },
+
+  /**
+   * Log security events for monitoring
+   */
+  logSecurityEvent: async (event: {
+    type: string;
+    email?: string;
+    details?: string;
+    attempts?: number;
+    timestamp?: string;
+  }): Promise<void> => {
+    try {
+      const timestamp = event.timestamp || new Date().toISOString();
+      const eventLog = {
+        ...event,
+        timestamp,
+      };
+
+      // Store locally
+      const logs = await safeGetItem("security_logs");
+      const logArray = logs ? JSON.parse(logs) : [];
+
+      logArray.push(eventLog);
+
+      // Keep only last 100 events
+      if (logArray.length > 100) {
+        logArray.shift();
+      }
+
+      await safeSetItem("security_logs", JSON.stringify(logArray));
+
+      console.log("📝 Security event logged:", event.type);
+
+      // TODO: In production, send to backend for monitoring
+      // Example:
+      // await fetch('https://your-api.com/log-security-event', {
+      //   method: 'POST',
+      //   body: JSON.stringify(eventLog),
+      // });
+    } catch (error) {
+      console.error("❌ Error logging security event:", error);
+    }
+  },
+
+  /**
+   * Get security logs (for admin/debugging)
+   */
+  getSecurityLogs: async (): Promise<any[]> => {
+    try {
+      const logs = await safeGetItem("security_logs");
+      return logs ? JSON.parse(logs) : [];
+    } catch (error) {
+      console.error("❌ Error retrieving security logs:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Clear all security logs
+   */
+  clearSecurityLogs: async (): Promise<void> => {
+    try {
+      await safeRemoveItem("security_logs");
+      console.log("✅ Security logs cleared");
+    } catch (error) {
+      console.error("❌ Error clearing security logs:", error);
+    }
+  },
+
+  /**
+   * Add delay to prevent brute force attacks
+   */
+  addSecurityDelay: async (milliseconds: number = 500): Promise<void> => {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
+  },
+};

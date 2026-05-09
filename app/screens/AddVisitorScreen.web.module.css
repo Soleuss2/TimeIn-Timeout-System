@@ -19,7 +19,7 @@
   border: none;
   font-size: 16px;
   cursor: pointer;
-  color: #007AFF;
+  color: #007aff;
   padding: 8px;
   border-radius: 4px;
   transition: background-color 0.2s;
@@ -67,7 +67,7 @@
 
 .input:focus {
   outline: none;
-  border-color: #007AFF;
+  border-color: #007aff;
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
 }
 
@@ -77,7 +77,7 @@
 }
 
 .submitButton {
-  background-color: #007AFF;
+  background-color: #007aff;
   color: white;
   padding: 12px 16px;
   border-radius: 8px;
@@ -90,7 +90,7 @@
 }
 
 .submitButton:hover {
-  background-color: #0051D5;
+  background-color: #0051d5;
 }
 
 .submitButton:active {

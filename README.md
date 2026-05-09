@@ -1,4 +1,3 @@
-
 # TimeIn-Timeout System
 
 A mobile-first Expo Router app for campus access control with Student, Guard, and Admin portals.
@@ -99,8 +98,8 @@ A mobile-first Expo Router app for campus access control with Student, Guard, an
 
 - Keep the `app/` folder structure consistent with Expo Router
 - Use `expo install expo-camera` for camera support
-- Run `npx tsc --noEmit` before pushing to catch TypeScript issues
-=======
-# TimeIn-Timeout-System
-A student attendance management system built with React Native and Expo. Allows students to check-in/check-out, tracks attendance records, and provides real-time monitoring of student presence.
+- # Run `npx tsc --noEmit` before pushing to catch TypeScript issues
 
+# TimeIn-Timeout-System
+
+A student attendance management system built with React Native and Expo. Allows students to check-in/check-out, tracks attendance records, and provides real-time monitoring of student presence.

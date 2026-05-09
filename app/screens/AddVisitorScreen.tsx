@@ -1,39 +1,44 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
 import {
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
-} from 'react-native';
-import { useThemeColor } from '../../hooks/use-theme-color';
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useThemeColor } from "../../hooks/use-theme-color";
 
 export default function AddVisitorScreen() {
   const router = useRouter();
-  const backgroundColor = useThemeColor({}, 'background');
-  const textColor = useThemeColor({}, 'text');
-  
-  const [visitorName, setVisitorName] = useState('');
-  const [visitorEmail, setVisitorEmail] = useState('');
-  const [visitorPhone, setVisitorPhone] = useState('');
-  const [visitPurpose, setVisitPurpose] = useState('');
+  const backgroundColor = useThemeColor({}, "background");
+  const textColor = useThemeColor({}, "text");
+
+  const [visitorName, setVisitorName] = useState("");
+  const [visitorEmail, setVisitorEmail] = useState("");
+  const [visitorPhone, setVisitorPhone] = useState("");
+  const [visitPurpose, setVisitPurpose] = useState("");
 
   const handleAddVisitor = () => {
-    if (!visitorName.trim() || !visitorEmail.trim() || !visitorPhone.trim() || !visitPurpose.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+    if (
+      !visitorName.trim() ||
+      !visitorEmail.trim() ||
+      !visitorPhone.trim() ||
+      !visitPurpose.trim()
+    ) {
+      Alert.alert("Error", "Please fill in all fields");
       return;
     }
-    Alert.alert('Success', 'Visitor added successfully');
-    setVisitorName('');
-    setVisitorEmail('');
-    setVisitorPhone('');
-    setVisitPurpose('');
+    Alert.alert("Success", "Visitor added successfully");
+    setVisitorName("");
+    setVisitorEmail("");
+    setVisitorPhone("");
+    setVisitPurpose("");
   };
 
   return (
@@ -50,9 +55,14 @@ export default function AddVisitorScreen() {
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: textColor }]}>Visitor Name</Text>
+            <Text style={[styles.label, { color: textColor }]}>
+              Visitor Name
+            </Text>
             <TextInput
-              style={[styles.input, { color: textColor, borderColor: textColor }]}
+              style={[
+                styles.input,
+                { color: textColor, borderColor: textColor },
+              ]}
               placeholder="Enter visitor name"
               placeholderTextColor={`${textColor}80`}
               value={visitorName}
@@ -63,7 +73,10 @@ export default function AddVisitorScreen() {
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: textColor }]}>Email</Text>
             <TextInput
-              style={[styles.input, { color: textColor, borderColor: textColor }]}
+              style={[
+                styles.input,
+                { color: textColor, borderColor: textColor },
+              ]}
               placeholder="Enter email address"
               placeholderTextColor={`${textColor}80`}
               keyboardType="email-address"
@@ -73,9 +86,14 @@ export default function AddVisitorScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: textColor }]}>Phone Number</Text>
+            <Text style={[styles.label, { color: textColor }]}>
+              Phone Number
+            </Text>
             <TextInput
-              style={[styles.input, { color: textColor, borderColor: textColor }]}
+              style={[
+                styles.input,
+                { color: textColor, borderColor: textColor },
+              ]}
               placeholder="Enter phone number"
               placeholderTextColor={`${textColor}80`}
               keyboardType="phone-pad"
@@ -85,9 +103,15 @@ export default function AddVisitorScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: textColor }]}>Purpose of Visit</Text>
+            <Text style={[styles.label, { color: textColor }]}>
+              Purpose of Visit
+            </Text>
             <TextInput
-              style={[styles.input, styles.textArea, { color: textColor, borderColor: textColor }]}
+              style={[
+                styles.input,
+                styles.textArea,
+                { color: textColor, borderColor: textColor },
+              ]}
               placeholder="Enter purpose of visit"
               placeholderTextColor={`${textColor}80`}
               multiline
@@ -97,7 +121,10 @@ export default function AddVisitorScreen() {
             />
           </View>
 
-          <TouchableOpacity style={styles.submitButton} onPress={handleAddVisitor}>
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={handleAddVisitor}
+          >
             <Text style={styles.submitButtonText}>Add Visitor</Text>
           </TouchableOpacity>
         </View>
@@ -114,14 +141,14 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 24,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   form: {
     gap: 20,
@@ -131,7 +158,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   input: {
     borderWidth: 1,
@@ -142,19 +169,19 @@ const styles = StyleSheet.create({
   },
   textArea: {
     minHeight: 100,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
     paddingTop: 12,
   },
   submitButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     paddingVertical: 12,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 16,
   },
   submitButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
