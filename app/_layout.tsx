@@ -69,7 +69,8 @@ export default function RootLayout() {
   // Auth is ready — now decide if the current route is allowed.
   // ──────────────────────────────────────────────
   const currentRoute = segments[0] as string | undefined;
-  const isProtectedRoute = currentRoute && PROTECTED_ROUTES.includes(currentRoute);
+  const isProtectedRoute =
+    currentRoute && PROTECTED_ROUTES.includes(currentRoute);
 
   // CASE 1: Not logged in + trying to access a protected page → go to login
   if (isProtectedRoute && !user) {
@@ -81,7 +82,7 @@ export default function RootLayout() {
     const allowedRoutes = ROLE_ACCESS[user.role] || [];
     if (!allowedRoutes.includes(currentRoute)) {
       console.warn(
-        `🚫 Unauthorized: role "${user.role}" cannot access "/${currentRoute}"`
+        `🚫 Unauthorized: role "${user.role}" cannot access "/${currentRoute}"`,
       );
       // Send them to their correct portal
       if (user.role === "admin") {

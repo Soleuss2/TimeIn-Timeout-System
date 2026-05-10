@@ -139,8 +139,7 @@ export default function LoginScreen() {
     // Store user data in AsyncStorage for session persistence
     try {
       await AsyncStorage.setItem("user", JSON.stringify(user));
-    } catch (error) {
-    }
+    } catch (error) {}
 
     if (user.role === "admin") {
       router.push("/admin");

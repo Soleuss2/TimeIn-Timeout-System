@@ -1,6 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   Platform,
   SafeAreaView,
@@ -55,12 +61,15 @@ export default function AdminScreen() {
     buttons: [],
   });
   // ─────────────────────────────────────────────────────────────────────────
-  const [currentScreen, setCurrentScreen] = useState<AdminScreenType>("overview");
+  const [currentScreen, setCurrentScreen] =
+    useState<AdminScreenType>("overview");
   const [userType, setUserType] = useState<"students" | "guards">("students");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("Oct 24, 00:00");
   const [dateTo, setDateTo] = useState("Oct 24, 23:59");
-  const [newAccountRole, setNewAccountRole] = useState<"student" | "guard">("student");
+  const [newAccountRole, setNewAccountRole] = useState<"student" | "guard">(
+    "student",
+  );
   const [showChartModal, setShowChartModal] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [creatingAccount, setCreatingAccount] = useState(false);
@@ -73,18 +82,26 @@ export default function AdminScreen() {
   const [sortKey, setSortKey] = useState("firstName");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const studentTrie = useRef<Trie>(new Trie());
-  const guardTrie   = useRef<Trie>(new Trie());
+  const guardTrie = useRef<Trie>(new Trie());
   const duplicateChecker = useRef<DuplicateChecker>(new DuplicateChecker());
   // ─────────────────────────────────────────────────────────────────────────
 
   // Computed: run search + sort pipeline entirely in memory (no Firestore)
-  const displayedStudents = useMemo(() =>
-    searchAndSort(studentTrie.current, students, searchQuery, sortKey, sortOrder),
-    [students, searchQuery, sortKey, sortOrder]
+  const displayedStudents = useMemo(
+    () =>
+      searchAndSort(
+        studentTrie.current,
+        students,
+        searchQuery,
+        sortKey,
+        sortOrder,
+      ),
+    [students, searchQuery, sortKey, sortOrder],
   );
-  const displayedGuards = useMemo(() =>
-    searchAndSort(guardTrie.current, guards, searchQuery, sortKey, sortOrder),
-    [guards, searchQuery, sortKey, sortOrder]
+  const displayedGuards = useMemo(
+    () =>
+      searchAndSort(guardTrie.current, guards, searchQuery, sortKey, sortOrder),
+    [guards, searchQuery, sortKey, sortOrder],
   );
 
   const [newAccountData, setNewAccountData] = useState({
@@ -115,7 +132,7 @@ export default function AdminScreen() {
     setLoadingUsers(true);
     try {
       const [studentsData, guardsData] = await Promise.all([
-        AdminService.fetchStudents(),   // no query — fetch all
+        AdminService.fetchStudents(), // no query — fetch all
         AdminService.fetchGuards(),
       ]);
       setStudents(studentsData);
@@ -123,7 +140,7 @@ export default function AdminScreen() {
 
       // ── Build Trie indexes ─────────────────────────────────────────
       studentTrie.current = buildTrie(studentsData as any);
-      guardTrie.current   = buildTrie(guardsData as any);
+      guardTrie.current = buildTrie(guardsData as any);
 
       // ── Populate Hash Set for duplicate detection ──────────────────
       duplicateChecker.current.load([...studentsData, ...guardsData]);
@@ -184,7 +201,8 @@ export default function AdminScreen() {
   const handleLogout = () => {
     setAlertConfig({
       title: "Logout Confirmation",
-      message: "Are you sure you want to logout? You will need to sign in again.",
+      message:
+        "Are you sure you want to logout? You will need to sign in again.",
       type: "warning",
       buttons: [
         {
@@ -272,7 +290,8 @@ export default function AdminScreen() {
   };
 
   const validateAccountForm = (): boolean => {
-    const { firstName, lastName, email, studentId, employeeId } = newAccountData;
+    const { firstName, lastName, email, studentId, employeeId } =
+      newAccountData;
 
     if (!firstName.trim()) {
       setErrorMessage("First name is required");
@@ -399,7 +418,7 @@ export default function AdminScreen() {
                 setCurrentScreen("users");
               },
             },
-          ]
+          ],
         );
       } else {
         setErrorMessage(response.message || "Failed to create account");
@@ -414,7 +433,9 @@ export default function AdminScreen() {
   const renderOverviewScreen = () => (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.welcome}>Welcome, Admin</Text>
-      <Text style={styles.welcomeSub}>Here's the campus overview for today.</Text>
+      <Text style={styles.welcomeSub}>
+        Here's the campus overview for today.
+      </Text>
 
       <View style={styles.overviewCard}>
         <Text style={styles.overviewTitle}>Total Registered Students</Text>
@@ -455,13 +476,19 @@ export default function AdminScreen() {
   );
 
   const renderUsersScreen = () => {
-    const displayed = userType === "students" ? displayedStudents : displayedGuards;
+    const displayed =
+      userType === "students" ? displayedStudents : displayedGuards;
     return (
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.screenTitle}>Directory</Text>
 
         <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color="#9ca3af" style={styles.searchIcon} />
+          <Ionicons
+            name="search"
+            size={18}
+            color="#9ca3af"
+            style={styles.searchIcon}
+          />
           <TextInput
             style={styles.searchInput}
             placeholder="Search name or ID..."
@@ -481,7 +508,12 @@ export default function AdminScreen() {
             style={[styles.tab, userType === "students" && styles.tabActive]}
             onPress={() => setUserType("students")}
           >
-            <Text style={[styles.tabText, userType === "students" && styles.tabTextActive]}>
+            <Text
+              style={[
+                styles.tabText,
+                userType === "students" && styles.tabTextActive,
+              ]}
+            >
               {`Students (${students.length})`}
             </Text>
           </TouchableOpacity>
@@ -489,7 +521,12 @@ export default function AdminScreen() {
             style={[styles.tab, userType === "guards" && styles.tabActive]}
             onPress={() => setUserType("guards")}
           >
-            <Text style={[styles.tabText, userType === "guards" && styles.tabTextActive]}>
+            <Text
+              style={[
+                styles.tabText,
+                userType === "guards" && styles.tabTextActive,
+              ]}
+            >
               {`Guards (${guards.length})`}
             </Text>
           </TouchableOpacity>
@@ -500,7 +537,7 @@ export default function AdminScreen() {
           <Text style={styles.sortLabel}>Sort:</Text>
           {[
             { key: "firstName", label: "Name" },
-            { key: "isActive",  label: "Status" },
+            { key: "isActive", label: "Status" },
             { key: "createdAt", label: "Date" },
           ].map(({ key, label }) => (
             <TouchableOpacity
@@ -508,7 +545,12 @@ export default function AdminScreen() {
               style={[styles.sortBtn, sortKey === key && styles.sortBtnActive]}
               onPress={() => toggleSort(key)}
             >
-              <Text style={[styles.sortBtnText, sortKey === key && styles.sortBtnTextActive]}>
+              <Text
+                style={[
+                  styles.sortBtnText,
+                  sortKey === key && styles.sortBtnTextActive,
+                ]}
+              >
                 {`${label}${sortKey === key ? (sortOrder === "asc" ? " ↑" : " ↓") : ""}`}
               </Text>
             </TouchableOpacity>
@@ -542,11 +584,20 @@ export default function AdminScreen() {
                     />
                   </View>
                   <View style={styles.userDetails}>
-                    <Text style={styles.userName}>{`${user.firstName} ${user.lastName}`}</Text>
+                    <Text
+                      style={styles.userName}
+                    >{`${user.firstName} ${user.lastName}`}</Text>
                     <Text style={styles.userID}>
-                      {userType === "students" ? user.studentId : user.employeeId}
+                      {userType === "students"
+                        ? user.studentId
+                        : user.employeeId}
                     </Text>
-                    <Text style={[styles.userStatus, { color: user.isActive ? "#10b981" : "#ef4444" }]}>
+                    <Text
+                      style={[
+                        styles.userStatus,
+                        { color: user.isActive ? "#10b981" : "#ef4444" },
+                      ]}
+                    >
                       {user.isActive ? "● ACTIVE" : "● PENDING"}
                     </Text>
                   </View>
@@ -557,22 +608,35 @@ export default function AdminScreen() {
             {displayed.length === 0 && (
               <View style={styles.emptyContainer}>
                 <Ionicons
-                  name={searchQuery ? "search-outline" : userType === "students" ? "people-outline" : "shield-outline"}
+                  name={
+                    searchQuery
+                      ? "search-outline"
+                      : userType === "students"
+                        ? "people-outline"
+                        : "shield-outline"
+                  }
                   size={48}
                   color="#d1d5db"
                 />
                 <Text style={styles.emptyText}>
-                  {searchQuery ? `No matches for "${searchQuery}"` : "No users found"}
+                  {searchQuery
+                    ? `No matches for "${searchQuery}"`
+                    : "No users found"}
                 </Text>
                 {searchQuery.length > 0 && (
-                  <Text style={styles.emptySubText}>Fuzzy search checked — no close matches</Text>
+                  <Text style={styles.emptySubText}>
+                    Fuzzy search checked — no close matches
+                  </Text>
                 )}
               </View>
             )}
           </View>
         )}
 
-        <TouchableOpacity style={styles.fab} onPress={() => setCurrentScreen("new-account")}>
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setCurrentScreen("new-account")}
+        >
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
       </ScrollView>
@@ -618,7 +682,9 @@ export default function AdminScreen() {
           <View key={log.id} style={styles.auditLogCard}>
             <View style={styles.auditLogIcon}>
               <Ionicons
-                name={log.type === "IN" ? "arrow-down-outline" : "arrow-up-outline"}
+                name={
+                  log.type === "IN" ? "arrow-down-outline" : "arrow-up-outline"
+                }
                 size={20}
                 color={log.type === "IN" ? "#10b981" : "#ef4444"}
               />
@@ -729,7 +795,10 @@ export default function AdminScreen() {
         onChangeText={(value) => handleNewAccountChange("lastName", value)}
       />
 
-      <Text style={styles.fieldLabel}>{"Suffix "}<Text style={styles.fieldLabelOptional}>{"(Optional)"}</Text></Text>
+      <Text style={styles.fieldLabel}>
+        {"Suffix "}
+        <Text style={styles.fieldLabelOptional}>{"(Optional)"}</Text>
+      </Text>
       <TextInput
         style={styles.textInput}
         placeholder="Jr., Sr., II, III, IV"
@@ -739,7 +808,10 @@ export default function AdminScreen() {
         onChangeText={(value) => handleNewAccountChange("suffix", value)}
       />
 
-      <Text style={styles.fieldLabel}>{"Middle Name "}<Text style={styles.fieldLabelOptional}>{"(Optional)"}</Text></Text>
+      <Text style={styles.fieldLabel}>
+        {"Middle Name "}
+        <Text style={styles.fieldLabelOptional}>{"(Optional)"}</Text>
+      </Text>
       <TextInput
         style={styles.textInput}
         placeholder="e.g. Santos"
@@ -780,7 +852,9 @@ export default function AdminScreen() {
             {(["Car", "Motorcycle", "Ebike", "Others"] as const).map((type) => {
               const isOthers = type === "Others";
               const isActive = isOthers
-                ? !["Car", "Motorcycle", "Ebike"].includes(newAccountData.vehicleType)
+                ? !["Car", "Motorcycle", "Ebike"].includes(
+                    newAccountData.vehicleType,
+                  )
                 : newAccountData.vehicleType === type;
               return (
                 <TouchableOpacity
@@ -791,24 +865,33 @@ export default function AdminScreen() {
                   ]}
                   onPress={() => {
                     if (!creatingAccount) {
-                      handleNewAccountChange("vehicleType", isOthers ? "Others" : type);
+                      handleNewAccountChange(
+                        "vehicleType",
+                        isOthers ? "Others" : type,
+                      );
                     }
                   }}
                   disabled={creatingAccount}
                 >
                   <Ionicons
                     name={
-                      type === "Car" ? "car-outline" :
-                      type === "Motorcycle" ? "bicycle-outline" :
-                      type === "Ebike" ? "flash-outline" : "pencil-outline"
+                      type === "Car"
+                        ? "car-outline"
+                        : type === "Motorcycle"
+                          ? "bicycle-outline"
+                          : type === "Ebike"
+                            ? "flash-outline"
+                            : "pencil-outline"
                     }
                     size={14}
                     color={isActive ? "#fff" : "#6b7280"}
                   />
-                  <Text style={[
-                    styles.vehicleTypeBtnText,
-                    isActive && styles.vehicleTypeBtnTextActive,
-                  ]}>
+                  <Text
+                    style={[
+                      styles.vehicleTypeBtnText,
+                      isActive && styles.vehicleTypeBtnTextActive,
+                    ]}
+                  >
                     {type}
                   </Text>
                 </TouchableOpacity>
@@ -816,14 +899,22 @@ export default function AdminScreen() {
             })}
           </View>
 
-          {!["Car", "Motorcycle", "Ebike"].includes(newAccountData.vehicleType) && (
+          {!["Car", "Motorcycle", "Ebike"].includes(
+            newAccountData.vehicleType,
+          ) && (
             <TextInput
               style={[styles.textInput, { marginTop: -8 }]}
               placeholder="Specify vehicle type..."
               placeholderTextColor="#d1d5db"
               editable={!creatingAccount}
-              value={newAccountData.vehicleType === "Others" ? "" : newAccountData.vehicleType}
-              onChangeText={(value) => handleNewAccountChange("vehicleType", value || "Others")}
+              value={
+                newAccountData.vehicleType === "Others"
+                  ? ""
+                  : newAccountData.vehicleType
+              }
+              onChangeText={(value) =>
+                handleNewAccountChange("vehicleType", value || "Others")
+              }
             />
           )}
 
@@ -835,7 +926,9 @@ export default function AdminScreen() {
             autoCapitalize="characters"
             editable={!creatingAccount}
             value={newAccountData.vehiclePlate}
-            onChangeText={(value) => handleNewAccountChange("vehiclePlate", value)}
+            onChangeText={(value) =>
+              handleNewAccountChange("vehiclePlate", value)
+            }
           />
         </>
       ) : (
@@ -847,7 +940,9 @@ export default function AdminScreen() {
             placeholderTextColor="#d1d5db"
             editable={!creatingAccount}
             value={newAccountData.employeeId}
-            onChangeText={(value) => handleNewAccountChange("employeeId", value)}
+            onChangeText={(value) =>
+              handleNewAccountChange("employeeId", value)
+            }
           />
         </>
       )}
@@ -953,10 +1048,7 @@ export default function AdminScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Admin Portal</Text>
         <Text style={styles.headerSubtitle}>System Management</Text>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handleLogout}
-        >
+        <TouchableOpacity style={styles.headerButton} onPress={handleLogout}>
           <Ionicons name="exit-outline" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -1035,7 +1127,7 @@ export default function AdminScreen() {
           </TouchableOpacity>
         </View>
       )}
-      
+
       {renderChartModal()}
     </SafeAreaView>
   );

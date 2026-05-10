@@ -90,7 +90,7 @@ export function levenshteinDistance(a: string, b: string): number {
 
   // dp[i][j] = edit distance between a[0..i-1] and b[0..j-1]
   const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
-    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
   );
 
   for (let i = 1; i <= m; i++) {
@@ -101,9 +101,9 @@ export function levenshteinDistance(a: string, b: string): number {
         dp[i][j] =
           1 +
           Math.min(
-            dp[i - 1][j],     // deletion
-            dp[i][j - 1],     // insertion
-            dp[i - 1][j - 1]  // substitution
+            dp[i - 1][j], // deletion
+            dp[i][j - 1], // insertion
+            dp[i - 1][j - 1], // substitution
           );
       }
     }
@@ -119,7 +119,7 @@ export function fuzzySearch<T extends TrieNodeData>(
   records: T[],
   query: string,
   keys: string[],
-  threshold = 2
+  threshold = 2,
 ): T[] {
   const lower = query.toLowerCase().trim();
   const results: T[] = [];
@@ -148,17 +148,19 @@ export function fuzzySearch<T extends TrieNodeData>(
 // 3. MERGE SORT — stable O(n log n) sort
 // ─────────────────────────────────────────────
 
-export type SortKey = "name" | "studentId" | "employeeId" | "createdAt" | "status";
+export type SortKey =
+  | "name"
+  | "studentId"
+  | "employeeId"
+  | "createdAt"
+  | "status";
 export type SortOrder = "asc" | "desc";
 
 /**
  * Merge Sort implementation — stable, O(n log n).
  * Used to sort the admin directory by any column.
  */
-export function mergeSort<T>(
-  arr: T[],
-  compareFn: (a: T, b: T) => number
-): T[] {
+export function mergeSort<T>(arr: T[], compareFn: (a: T, b: T) => number): T[] {
   if (arr.length <= 1) return arr;
 
   const mid = Math.floor(arr.length / 2);
@@ -168,7 +170,11 @@ export function mergeSort<T>(
   return merge(left, right, compareFn);
 }
 
-function merge<T>(left: T[], right: T[], compareFn: (a: T, b: T) => number): T[] {
+function merge<T>(
+  left: T[],
+  right: T[],
+  compareFn: (a: T, b: T) => number,
+): T[] {
   const result: T[] = [];
   let i = 0;
   let j = 0;
@@ -189,7 +195,7 @@ function merge<T>(left: T[], right: T[], compareFn: (a: T, b: T) => number): T[]
  */
 export function buildComparator<T extends Record<string, any>>(
   key: string,
-  order: SortOrder = "asc"
+  order: SortOrder = "asc",
 ): (a: T, b: T) => number {
   return (a, b) => {
     let valA = a[key];
@@ -226,7 +232,9 @@ export class DuplicateChecker {
    * Load the existing records into the hash sets.
    * Call this once after fetching from Firestore.
    */
-  load(records: Array<{ email?: string; studentId?: string; employeeId?: string }>): void {
+  load(
+    records: Array<{ email?: string; studentId?: string; employeeId?: string }>,
+  ): void {
     this.emailSet.clear();
     this.studentIdSet.clear();
     this.employeeIdSet.clear();
@@ -254,10 +262,15 @@ export class DuplicateChecker {
   }
 
   /** Add a newly created record to keep sets in sync */
-  add(record: { email?: string; studentId?: string; employeeId?: string }): void {
+  add(record: {
+    email?: string;
+    studentId?: string;
+    employeeId?: string;
+  }): void {
     if (record.email) this.emailSet.add(record.email.toLowerCase());
     if (record.studentId) this.studentIdSet.add(record.studentId.toLowerCase());
-    if (record.employeeId) this.employeeIdSet.add(record.employeeId.toLowerCase());
+    if (record.employeeId)
+      this.employeeIdSet.add(record.employeeId.toLowerCase());
   }
 }
 
@@ -278,7 +291,14 @@ export interface SearchableUser {
   [key: string]: any;
 }
 
-const SEARCH_KEYS = ["firstName", "lastName", "name", "studentId", "employeeId", "email"];
+const SEARCH_KEYS = [
+  "firstName",
+  "lastName",
+  "name",
+  "studentId",
+  "employeeId",
+  "email",
+];
 
 /**
  * Build a Trie index from an array of users.
@@ -302,7 +322,7 @@ export function searchAndSort(
   allUsers: SearchableUser[],
   query: string,
   sortKey: string = "firstName",
-  sortOrder: SortOrder = "asc"
+  sortOrder: SortOrder = "asc",
 ): SearchableUser[] {
   let results: SearchableUser[];
 

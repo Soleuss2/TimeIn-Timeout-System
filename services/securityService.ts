@@ -151,8 +151,7 @@ export const SecurityService = {
   clearLoginAttempts: async (email: string): Promise<void> => {
     try {
       await safeRemoveItem(`login_attempt_${email}`);
-    } catch (error) {
-    }
+    } catch (error) {}
   },
 
   /**
@@ -226,8 +225,7 @@ export const SecurityService = {
       //   method: 'POST',
       //   body: JSON.stringify(eventLog),
       // });
-    } catch (error) {
-    }
+    } catch (error) {}
   },
 
   /**
@@ -272,8 +270,7 @@ export const SecurityService = {
   clearSecurityLogs: async (): Promise<void> => {
     try {
       await safeRemoveItem("security_logs");
-    } catch (error) {
-    }
+    } catch (error) {}
   },
 
   /**

@@ -74,7 +74,10 @@ const generateTemporaryPassword = (): string => {
     password += allChars[Math.floor(Math.random() * allChars.length)];
   }
 
-  return password.split("").sort(() => Math.random() - 0.5).join("");
+  return password
+    .split("")
+    .sort(() => Math.random() - 0.5)
+    .join("");
 };
 
 /**
@@ -83,7 +86,7 @@ const generateTemporaryPassword = (): string => {
  */
 const createUserWithSecondaryApp = async (
   email: string,
-  password: string
+  password: string,
 ): Promise<FirebaseUser> => {
   // Build a unique name so we don't collide with existing apps
   const secondaryAppName = `admin-create-${Date.now()}`;
@@ -104,7 +107,7 @@ const createUserWithSecondaryApp = async (
     const userCredential = await createUserWithEmailAndPassword(
       secondaryAuth,
       email,
-      password
+      password,
     );
     const newUser = userCredential.user;
 
@@ -184,7 +187,7 @@ export const AdminService = {
 
       await SecurityService.setSecurityData(
         rateLimitKey,
-        (count + 1).toString()
+        (count + 1).toString(),
       );
       return true;
     } catch (error) {
@@ -197,7 +200,7 @@ export const AdminService = {
    * Create a new student account with email verification
    */
   createStudentAccount: async (
-    payload: CreateAccountPayload & { adminId: string }
+    payload: CreateAccountPayload & { adminId: string },
   ): Promise<AdminAccountResponse> => {
     try {
       // Verify admin privileges
@@ -212,13 +215,12 @@ export const AdminService = {
 
       // Check rate limit
       const withinLimit = await AdminService.checkAdminRateLimit(
-        payload.adminId
+        payload.adminId,
       );
       if (!withinLimit) {
         return {
           success: false,
-          message:
-            "Rate limit exceeded. Maximum 10 accounts per hour allowed.",
+          message: "Rate limit exceeded. Maximum 10 accounts per hour allowed.",
           error: "RATE_LIMIT_EXCEEDED",
         };
       }
@@ -248,7 +250,7 @@ export const AdminService = {
 
       // Check if email already exists
       const existingStudent = await getDocs(
-        query(collection(db, "students"), where("email", "==", payload.email))
+        query(collection(db, "students"), where("email", "==", payload.email)),
       );
 
       if (!existingStudent.empty) {
@@ -268,7 +270,7 @@ export const AdminService = {
       try {
         firebaseUser = await createUserWithSecondaryApp(
           payload.email,
-          tempPassword
+          tempPassword,
         );
       } catch (error: any) {
         if (error.code === "auth/email-already-in-use") {
@@ -375,7 +377,7 @@ export const AdminService = {
    * Create a new guard account with email verification
    */
   createGuardAccount: async (
-    payload: CreateAccountPayload & { adminId: string }
+    payload: CreateAccountPayload & { adminId: string },
   ): Promise<AdminAccountResponse> => {
     try {
       // Verify admin privileges
@@ -390,13 +392,12 @@ export const AdminService = {
 
       // Check rate limit
       const withinLimit = await AdminService.checkAdminRateLimit(
-        payload.adminId
+        payload.adminId,
       );
       if (!withinLimit) {
         return {
           success: false,
-          message:
-            "Rate limit exceeded. Maximum 10 accounts per hour allowed.",
+          message: "Rate limit exceeded. Maximum 10 accounts per hour allowed.",
           error: "RATE_LIMIT_EXCEEDED",
         };
       }
@@ -426,7 +427,7 @@ export const AdminService = {
 
       // Check if email already exists
       const existingGuard = await getDocs(
-        query(collection(db, "guards"), where("email", "==", payload.email))
+        query(collection(db, "guards"), where("email", "==", payload.email)),
       );
 
       if (!existingGuard.empty) {
@@ -446,7 +447,7 @@ export const AdminService = {
       try {
         firebaseUser = await createUserWithSecondaryApp(
           payload.email,
-          tempPassword
+          tempPassword,
         );
       } catch (error: any) {
         if (error.code === "auth/email-already-in-use") {
@@ -554,7 +555,7 @@ export const AdminService = {
             s.firstName.toLowerCase().includes(query) ||
             s.lastName.toLowerCase().includes(query) ||
             s.studentId?.toLowerCase().includes(query) ||
-            s.email.toLowerCase().includes(query)
+            s.email.toLowerCase().includes(query),
         );
       }
 
@@ -597,7 +598,7 @@ export const AdminService = {
             g.firstName.toLowerCase().includes(query) ||
             g.lastName.toLowerCase().includes(query) ||
             g.employeeId?.toLowerCase().includes(query) ||
-            g.email.toLowerCase().includes(query)
+            g.email.toLowerCase().includes(query),
         );
       }
 
@@ -614,7 +615,7 @@ export const AdminService = {
   deactivateUser: async (
     userId: string,
     role: "student" | "guard",
-    adminId: string
+    adminId: string,
   ): Promise<AdminAccountResponse> => {
     try {
       // Verify admin privileges

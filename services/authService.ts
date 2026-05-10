@@ -199,10 +199,11 @@ export const AuthService = {
       const user: User = {
         id: firebaseUser.uid,
         email: firebaseUser.email || email,
-        name: userData.name
-          || `${userData.firstName || userData.FirstName || ""} ${userData.lastName || userData.lastNameName || ""}`.trim()
-          || firebaseUser.email?.split("@")[0]
-          || "User",
+        name:
+          userData.name ||
+          `${userData.firstName || userData.FirstName || ""} ${userData.lastName || userData.lastNameName || ""}`.trim() ||
+          firebaseUser.email?.split("@")[0] ||
+          "User",
         role: userData.role as "student" | "guard" | "admin",
         studentId: userData.studentId || userData.employeeId,
       };
@@ -220,7 +221,6 @@ export const AuthService = {
         message: `Welcome, ${user.name}`,
       };
     } catch (error: any) {
-
       // Extract email for rate limiting
       let email = "";
       try {
@@ -448,10 +448,11 @@ export const AuthService = {
       return {
         id: firebaseUser.uid,
         email: firebaseUser.email || "",
-        name: userData.name
-          || `${userData.firstName || userData.FirstName || ""} ${userData.lastName || userData.lastNameName || ""}`.trim()
-          || firebaseUser.email?.split("@")[0]
-          || "User",
+        name:
+          userData.name ||
+          `${userData.firstName || userData.FirstName || ""} ${userData.lastName || userData.lastNameName || ""}`.trim() ||
+          firebaseUser.email?.split("@")[0] ||
+          "User",
         role: userRole || userData.role || "student",
         studentId: userData.studentId || userData.employeeId,
       };
