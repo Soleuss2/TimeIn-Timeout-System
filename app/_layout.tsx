@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ActivityIndicator, View, Text, StyleSheet } from "react-native";
 import { AuthService } from "../services/authService";
 import { User } from "../services/authService";
+import { AuthProvider } from "../services/authContext";
 
 // Define which roles can access which routes
 const ROLE_ACCESS: Record<string, string[]> = {
@@ -95,61 +96,63 @@ export default function RootLayout() {
 
   // CASE 3: Everything checks out — render normally
   return (
-    <Stack>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="student"
-        options={{
-          title: "Student Portal",
-          headerBackTitle: "Back",
-          gestureEnabled: true,
-        }}
-      />
-      <Stack.Screen
-        name="guard"
-        options={{
-          title: "Guard Portal",
-          headerBackTitle: "Back",
-          gestureEnabled: true,
-        }}
-      />
-      <Stack.Screen
-        name="admin"
-        options={{
-          title: "Admin Panel",
-          headerBackTitle: "Back",
-          gestureEnabled: true,
-        }}
-      />
-      <Stack.Screen
-        name="activity"
-        options={{
-          title: "Activity Log",
-          headerBackTitle: "Back",
-        }}
-      />
-      <Stack.Screen
-        name="guest"
-        options={{
-          title: "Guest Mode",
-          headerBackTitle: "Back",
-        }}
-      />
-      <Stack.Screen
-        name="add-visitor"
-        options={{
-          title: "Add Visitor",
-          headerBackTitle: "Back",
-        }}
-      />
-      <Stack.Screen
-        name="guard-activity"
-        options={{
-          title: "Guard Activity",
-          headerBackTitle: "Back",
-        }}
-      />
-    </Stack>
+    <AuthProvider>
+      <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="student"
+          options={{
+            title: "Student Portal",
+            headerBackTitle: "Back",
+            gestureEnabled: true,
+          }}
+        />
+        <Stack.Screen
+          name="guard"
+          options={{
+            title: "Guard Portal",
+            headerBackTitle: "Back",
+            gestureEnabled: true,
+          }}
+        />
+        <Stack.Screen
+          name="admin"
+          options={{
+            title: "Admin Panel",
+            headerBackTitle: "Back",
+            gestureEnabled: true,
+          }}
+        />
+        <Stack.Screen
+          name="activity"
+          options={{
+            title: "Activity Log",
+            headerBackTitle: "Back",
+          }}
+        />
+        <Stack.Screen
+          name="guest"
+          options={{
+            title: "Guest Mode",
+            headerBackTitle: "Back",
+          }}
+        />
+        <Stack.Screen
+          name="add-visitor"
+          options={{
+            title: "Add Visitor",
+            headerBackTitle: "Back",
+          }}
+        />
+        <Stack.Screen
+          name="guard-activity"
+          options={{
+            title: "Guard Activity",
+            headerBackTitle: "Back",
+          }}
+        />
+      </Stack>
+    </AuthProvider>
   );
 }
 

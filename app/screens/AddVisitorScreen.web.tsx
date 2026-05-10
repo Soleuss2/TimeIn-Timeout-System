@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import styles from "./AddVisitorScreen.web.module.css";
+import styles from "../../assets/styles/AddVisitorScreen.web.module.css";
 
 export default function AddVisitorScreen() {
   const [visitorName, setVisitorName] = useState("");

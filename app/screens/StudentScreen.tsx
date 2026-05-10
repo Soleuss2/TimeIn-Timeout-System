@@ -171,7 +171,6 @@ export default function StudentScreen() {
           setPlateNumber(studentData.plateNumber || null);
         }
       } catch (error) {
-        console.error("Error loading student data:", error);
         setAlertConfig({
           title: "Error",
           message: "Failed to load student data",
@@ -330,7 +329,6 @@ export default function StudentScreen() {
           url: file.uri,
         });
       } catch (shareError) {
-        console.warn("Share error:", shareError);
         setAlertConfig({
           title: "Saved",
           message: "QR code has been generated locally.",
@@ -346,7 +344,6 @@ export default function StudentScreen() {
         setAlertVisible(true);
       }
     } catch (error) {
-      console.error("QR export error:", error);
       setAlertConfig({
         title: "Error",
         message: "Failed to export the QR code. Please try again.",
@@ -399,7 +396,6 @@ export default function StudentScreen() {
                 // Perform logout
                 const result = await AuthService.logout();
                 if (result.success) {
-                  console.log("✅ Logout successful");
                   // Navigate to login screen
                   router.replace("/");
                 } else {
@@ -422,7 +418,6 @@ export default function StudentScreen() {
                 }
               });
             } catch (error) {
-              console.error("Logout error:", error);
               setAlertConfig({
                 title: "Error",
                 message: "An error occurred during logout",

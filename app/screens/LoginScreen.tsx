@@ -140,7 +140,6 @@ export default function LoginScreen() {
     try {
       await AsyncStorage.setItem("user", JSON.stringify(user));
     } catch (error) {
-      console.error("Failed to store user session:", error);
     }
 
     if (user.role === "admin") {

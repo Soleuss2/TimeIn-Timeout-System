@@ -13,7 +13,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -22,20 +22,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in on app startup
-    const checkAuth = async () => {
-      try {
-        setLoading(true);
-        // You can add logic here to restore user session from storage
-        // For now, we just check if user exists in auth state
-      } catch (error) {
-        console.error("Auth check error:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    // Subscribe to Firebase auth state changes
+    const unsubscribe = AuthService.onAuthStateChange((firebaseUser) => {
+      setUser(firebaseUser);
+      setLoading(false);
+    });
 
-    checkAuth();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const value: AuthContextType = {
