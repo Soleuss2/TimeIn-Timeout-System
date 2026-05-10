@@ -3,7 +3,7 @@ import {
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, Timestamp } from "firebase/firestore";
 import { authRef, db } from "./firebaseConfig";
 import { SecurityService } from "./securityService";
 
@@ -55,7 +55,6 @@ export const AuthService = {
 
       // Validate email format
       if (!SecurityService.validateEmail(email)) {
-        console.warn("⚠️ Invalid email format:", email);
         return {
           success: false,
           message: "Invalid email or username format.",
@@ -66,7 +65,6 @@ export const AuthService = {
       const { locked, minutesRemaining } =
         await SecurityService.isAccountLocked(email);
       if (locked) {
-        console.warn("🔒 Login attempt on locked account:", email);
         await SecurityService.logSecurityEvent({
           type: "LOCKED_ACCOUNT_LOGIN_ATTEMPT",
           email,
@@ -82,8 +80,6 @@ export const AuthService = {
       // ============ SECURITY: Add delay to prevent brute force ============
       await SecurityService.addSecurityDelay(500);
 
-      console.log("🔐 Attempting login with:", email);
-
       // Sign in with Firebase
       const userCredential = await signInWithEmailAndPassword(
         authRef,
@@ -92,7 +88,9 @@ export const AuthService = {
       );
       const firebaseUser = userCredential.user;
 
-      console.log("✅ Firebase auth successful:", firebaseUser.uid);
+      // Force-reload the user so emailVerified is fresh from the server,
+      // not the stale cached value from the auth token.
+      await firebaseUser.reload();
 
       // Get user profile from Firestore - try all collections
       let userDoc: any = null;
@@ -104,7 +102,6 @@ export const AuthService = {
       if (tempDoc.exists()) {
         userDoc = tempDoc;
         userRole = "student";
-        console.log("✅ User found in students collection");
       }
 
       // Try guards collection if not found
@@ -114,7 +111,6 @@ export const AuthService = {
         if (tempDoc.exists()) {
           userDoc = tempDoc;
           userRole = "guard";
-          console.log("✅ User found in guards collection");
         }
       }
 
@@ -125,15 +121,10 @@ export const AuthService = {
         if (tempDoc.exists()) {
           userDoc = tempDoc;
           userRole = "admin";
-          console.log("✅ User found in admins collection");
         }
       }
 
       if (!userDoc) {
-        console.warn(
-          "⚠️ User document not found in any collection:",
-          firebaseUser.uid,
-        );
         await SecurityService.logSecurityEvent({
           type: "LOGIN_PROFILE_NOT_FOUND",
           email,
@@ -146,15 +137,60 @@ export const AuthService = {
       }
 
       const userData = userDoc.data();
-      console.log("✅ User data retrieved:", userData);
 
       // Verify required fields
       if (!userData.role) {
-        console.warn("⚠️ User role not defined:", firebaseUser.uid);
         return {
           success: false,
           message: "User account configuration error. Please contact support.",
         };
+      }
+
+      // ============ ACTIVATION GATE ============
+      // Non-admin accounts must verify their email before logging in.
+      // firebaseUser.emailVerified is fresh (we called reload() above).
+      if (userRole !== "admin" && !firebaseUser.emailVerified) {
+        // Sign the user back out — don't let them in
+        await signOut(authRef);
+        await SecurityService.logSecurityEvent({
+          type: "LOGIN_BLOCKED_UNVERIFIED",
+          email,
+          details: "Login blocked: email not yet verified",
+        });
+        return {
+          success: false,
+          message:
+            "⚠️ Account not activated yet.\n\nPlease check your email and click the verification link to activate your account.",
+        };
+      }
+      // =========================================
+
+      // ============ AUTO-ACTIVATE: If email is verified but Firestore is still pending ============
+      if (
+        firebaseUser.emailVerified &&
+        userData.isActive === false &&
+        userRole !== "admin"
+      ) {
+        try {
+          const activationData = {
+            isActive: true,
+            emailVerified: true,
+            accountStatus: "ACTIVE",
+            activatedAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          };
+          // Update the user document
+          await updateDoc(userDoc.ref, activationData);
+          // Also activate the QR code so guard can scan it
+          const qrRef = doc(db, "qr_codes", firebaseUser.uid);
+          await updateDoc(qrRef, {
+            isActive: true,
+            activatedAt: Timestamp.now(),
+          });
+        } catch (activationError) {
+          console.error("Error auto-activating account:", activationError);
+          // Non-fatal: login still succeeds
+        }
       }
 
       // ============ SUCCESS: Clear failed attempts ============
@@ -163,12 +199,14 @@ export const AuthService = {
       const user: User = {
         id: firebaseUser.uid,
         email: firebaseUser.email || email,
-        name: userData.name || firebaseUser.email?.split("@")[0] || "User",
+        name:
+          userData.name ||
+          `${userData.firstName || userData.FirstName || ""} ${userData.lastName || userData.lastNameName || ""}`.trim() ||
+          firebaseUser.email?.split("@")[0] ||
+          "User",
         role: userData.role as "student" | "guard" | "admin",
         studentId: userData.studentId || userData.employeeId,
       };
-
-      console.log("✅ Login successful for:", user.name);
 
       // Log successful login
       await SecurityService.logSecurityEvent({
@@ -183,8 +221,6 @@ export const AuthService = {
         message: `Welcome, ${user.name}`,
       };
     } catch (error: any) {
-      console.error("❌ Login error:", error.code, error.message);
-
       // Extract email for rate limiting
       let email = "";
       try {
@@ -196,7 +232,6 @@ export const AuthService = {
       // Determine email from username if possible
       if (!email) {
         // Try to infer from error message or use a generic approach
-        console.warn("⚠️ Could not extract email from error");
       }
 
       // ============ SECURITY: Rate limiting on failed attempts ============
@@ -218,7 +253,6 @@ export const AuthService = {
       // Handle specific Firebase errors with better messages
       switch (error.code) {
         case "auth/user-not-found":
-          console.warn("🚨 User not found:", email);
           await SecurityService.logSecurityEvent({
             type: "FAILED_LOGIN_USER_NOT_FOUND",
             email,
@@ -231,7 +265,6 @@ export const AuthService = {
           };
 
         case "auth/wrong-password":
-          console.warn("🚨 Wrong password for:", email);
           await SecurityService.logSecurityEvent({
             type: "FAILED_LOGIN_WRONG_PASSWORD",
             email,
@@ -260,7 +293,6 @@ export const AuthService = {
           };
 
         case "auth/invalid-credential":
-          console.warn("🚨 Invalid credentials");
           await SecurityService.logSecurityEvent({
             type: "FAILED_LOGIN_INVALID_CREDENTIALS",
             email,
@@ -281,7 +313,6 @@ export const AuthService = {
           };
 
         case "auth/too-many-requests":
-          console.error("🔒 Too many requests from Firebase");
           await SecurityService.logSecurityEvent({
             type: "TOO_MANY_REQUESTS",
             email,
@@ -294,7 +325,6 @@ export const AuthService = {
           };
 
         case "auth/network-request-failed":
-          console.error("🌐 Network error");
           await SecurityService.logSecurityEvent({
             type: "NETWORK_ERROR",
             email,
@@ -306,14 +336,12 @@ export const AuthService = {
           };
 
         case "auth/internal-error":
-          console.error("⚠️ Firebase internal error:", error.message);
           return {
             success: false,
             message: "An internal error occurred. Please try again later.",
           };
 
         default:
-          console.error("❌ Unknown error:", error.code, error.message);
           await SecurityService.logSecurityEvent({
             type: "LOGIN_ERROR",
             email,
@@ -338,12 +366,9 @@ export const AuthService = {
           details: `User logged out`,
         });
       }
-      console.log("🔐 Logging out...");
       await signOut(authRef);
-      console.log("✅ Logout successful");
       return { success: true, message: "Logged out successfully" };
     } catch (error: any) {
-      console.error("❌ Logout error:", error);
       return { success: false, message: "Logout failed" };
     }
   },
@@ -351,12 +376,13 @@ export const AuthService = {
   getCurrentUser: async (): Promise<User | null> => {
     const firebaseUser = authRef.currentUser;
     if (!firebaseUser) {
-      console.log("No current user");
       return null;
     }
 
     try {
-      console.log("📦 Fetching user data for:", firebaseUser.uid);
+      // Reload to get fresh emailVerified state from the server
+      await firebaseUser.reload();
+
       let userDoc: any = null;
       let userRole: "student" | "guard" | "admin" | null = null;
 
@@ -389,20 +415,48 @@ export const AuthService = {
       }
 
       if (!userDoc) {
-        console.warn("⚠️ User document not found in any collection:", firebaseUser.uid);
         return null;
       }
 
       const userData = userDoc.data();
+
+      // AUTO-ACTIVATE: if email is now verified but Firestore is still pending
+      if (
+        firebaseUser.emailVerified &&
+        userData.isActive === false &&
+        userRole !== "admin"
+      ) {
+        try {
+          await updateDoc(userDoc.ref, {
+            isActive: true,
+            emailVerified: true,
+            accountStatus: "ACTIVE",
+            activatedAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          });
+          // Activate the QR code too
+          const qrRef = doc(db, "qr_codes", firebaseUser.uid);
+          await updateDoc(qrRef, {
+            isActive: true,
+            activatedAt: Timestamp.now(),
+          });
+        } catch (activationError) {
+          console.error("Error auto-activating account:", activationError);
+        }
+      }
+
       return {
         id: firebaseUser.uid,
         email: firebaseUser.email || "",
-        name: userData.name || firebaseUser.email?.split("@")[0] || "User",
+        name:
+          userData.name ||
+          `${userData.firstName || userData.FirstName || ""} ${userData.lastName || userData.lastNameName || ""}`.trim() ||
+          firebaseUser.email?.split("@")[0] ||
+          "User",
         role: userRole || userData.role || "student",
         studentId: userData.studentId || userData.employeeId,
       };
     } catch (error) {
-      console.error("❌ Get current user error:", error);
       return null;
     }
   },

@@ -64,31 +64,23 @@ export const SecurityService = {
 
       // Check if lockout has expired
       if (attempt.isLocked && attempt.lockUntil && now > attempt.lockUntil) {
-        console.log("✅ Account lockout expired for:", email);
         await safeRemoveItem(`login_attempt_${email}`);
         return { locked: false, minutesRemaining: 0 };
       }
 
       if (attempt.isLocked) {
         const minutesRemaining = Math.ceil((attempt.lockUntil! - now) / 60000);
-        console.warn(
-          "🔒 Account is locked for:",
-          email,
-          `(${minutesRemaining} minutes remaining)`,
-        );
         return { locked: true, minutesRemaining };
       }
 
       // Check if attempts should be reset
       if (now - attempt.timestamp > ATTEMPT_RESET_DURATION_MS) {
-        console.log("♻️ Resetting login attempts for:", email);
         await safeRemoveItem(`login_attempt_${email}`);
         return { locked: false, minutesRemaining: 0 };
       }
 
       return { locked: false, minutesRemaining: 0 };
     } catch (error) {
-      console.error("❌ Error checking account lock:", error);
       return { locked: false, minutesRemaining: 0 };
     }
   },
@@ -128,10 +120,6 @@ export const SecurityService = {
       if (attempt.attemptCount >= MAX_LOGIN_ATTEMPTS) {
         attempt.isLocked = true;
         attempt.lockUntil = Date.now() + LOCKOUT_DURATION_MS;
-        console.error(
-          "🔒 Account locked due to too many failed attempts:",
-          email,
-        );
 
         // Log security event
         await SecurityService.logSecurityEvent({
@@ -153,7 +141,6 @@ export const SecurityService = {
         isNowLocked: attempt.isLocked,
       };
     } catch (error) {
-      console.error("❌ Error recording failed attempt:", error);
       return { attemptsRemaining: MAX_LOGIN_ATTEMPTS, isNowLocked: false };
     }
   },
@@ -164,10 +151,7 @@ export const SecurityService = {
   clearLoginAttempts: async (email: string): Promise<void> => {
     try {
       await safeRemoveItem(`login_attempt_${email}`);
-      console.log("✅ Login attempts cleared for:", email);
-    } catch (error) {
-      console.error("❌ Error clearing login attempts:", error);
-    }
+    } catch (error) {}
   },
 
   /**
@@ -205,8 +189,14 @@ export const SecurityService = {
   logSecurityEvent: async (event: {
     type: string;
     email?: string;
+    userId?: string;
+    adminId?: string;
+    role?: string;
+    studentId?: string;
+    employeeId?: string;
     details?: string;
     attempts?: number;
+    error?: string;
     timestamp?: string;
   }): Promise<void> => {
     try {
@@ -229,16 +219,35 @@ export const SecurityService = {
 
       await safeSetItem("security_logs", JSON.stringify(logArray));
 
-      console.log("📝 Security event logged:", event.type);
-
       // TODO: In production, send to backend for monitoring
       // Example:
       // await fetch('https://your-api.com/log-security-event', {
       //   method: 'POST',
       //   body: JSON.stringify(eventLog),
       // });
+    } catch (error) {}
+  },
+
+  /**
+   * Get security data (generic storage for rate limits, etc.)
+   */
+  getSecurityData: async (key: string): Promise<string | null> => {
+    try {
+      return await safeGetItem(`security_${key}`);
     } catch (error) {
-      console.error("❌ Error logging security event:", error);
+      console.error("Error retrieving security data:", error);
+      return null;
+    }
+  },
+
+  /**
+   * Set security data (generic storage for rate limits, etc.)
+   */
+  setSecurityData: async (key: string, value: string): Promise<void> => {
+    try {
+      await safeSetItem(`security_${key}`, value);
+    } catch (error) {
+      console.error("Error setting security data:", error);
     }
   },
 
@@ -261,10 +270,7 @@ export const SecurityService = {
   clearSecurityLogs: async (): Promise<void> => {
     try {
       await safeRemoveItem("security_logs");
-      console.log("✅ Security logs cleared");
-    } catch (error) {
-      console.error("❌ Error clearing security logs:", error);
-    }
+    } catch (error) {}
   },
 
   /**
