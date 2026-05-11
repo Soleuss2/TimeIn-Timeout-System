@@ -1,10 +1,9 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Redirect, Stack, useSegments } from "expo-router";
 import { useEffect, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ActivityIndicator, View, Text, StyleSheet } from "react-native";
-import { AuthService } from "../services/authService";
-import { User } from "../services/authService";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { AuthProvider } from "../services/authContext";
+import { AuthService, User } from "../services/authService";
 
 // Define which roles can access which routes
 const ROLE_ACCESS: Record<string, string[]> = {

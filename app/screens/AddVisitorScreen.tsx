@@ -1,10 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { AuthService } from "../../services/authService";
 import {
   Alert,
-  Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -12,8 +10,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
+import { AuthService } from "../../services/authService";
 
 const VEHICLE_TYPES = ["Motorcycle", "Car", "Ebike", "Others"] as const;
 

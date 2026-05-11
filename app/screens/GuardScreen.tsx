@@ -3,17 +3,17 @@ import { Camera, CameraView } from "expo-camera";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { CustomAlert, AlertAction } from "../../components/CustomAlert";
+import { AlertAction, CustomAlert } from "../../components/CustomAlert";
 import { AuthService } from "../../services/authService";
 
 type ScannedPayload = {

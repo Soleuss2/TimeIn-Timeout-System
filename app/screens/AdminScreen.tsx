@@ -1,39 +1,36 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, {
-  useState,
-  useEffect,
-  useRef,
-  useMemo,
-  useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
 } from "react";
 import {
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  TextInput,
-  FlatList,
-  Modal,
-  Dimensions,
-  Alert,
+    Alert,
+    Dimensions,
+    Modal,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
-import { MOCK_ACTIVITY_LOGS } from "../../services/mockData";
+import { AlertAction, CustomAlert } from "../../components/CustomAlert";
 import { LoaderComponent } from "../../components/LoaderComponent";
-import { CustomAlert, AlertAction } from "../../components/CustomAlert";
-import { AuthService } from "../../services/authService";
 import { AdminService, DirectoryUser } from "../../services/adminService";
 import { useAuth } from "../../services/authContext";
+import { AuthService } from "../../services/authService";
 import {
-  Trie,
-  DuplicateChecker,
-  buildTrie,
-  searchAndSort,
-  SortOrder,
+    buildTrie,
+    DuplicateChecker,
+    searchAndSort,
+    SortOrder,
+    Trie,
 } from "../../services/searchService";
 
 type AdminScreenType = "overview" | "users" | "audit-logs" | "new-account";

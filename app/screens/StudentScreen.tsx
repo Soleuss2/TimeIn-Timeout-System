@@ -1,26 +1,26 @@
 import { Ionicons } from "@expo/vector-icons";
 import { File, Paths } from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { type ComponentType, useRef, useState, useEffect } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import React, { type ComponentType, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  Share,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Animated,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    Share,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
+import { AlertAction, CustomAlert } from "../../components/CustomAlert";
+import { LoaderComponent } from "../../components/LoaderComponent";
 import { AuthService, User } from "../../services/authService";
 import { db } from "../../services/firebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
-import { LoaderComponent } from "../../components/LoaderComponent";
-import { CustomAlert, AlertAction } from "../../components/CustomAlert";
 
 type QRCodeProps = {
   value: string;
