@@ -1605,6 +1605,604 @@ export default function AdminScreen() {
     );
   };
 
+  const renderOverviewScreen = () => (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.welcome}>Welcome, Admin</Text>
+      <Text style={styles.welcomeSub}>
+        Here's the campus overview for today.
+      </Text>
+
+      <View style={styles.overviewCard}>
+        <Text style={styles.overviewTitle}>Total Registered Students</Text>
+        <Text style={styles.overviewValue}>
+          {totalStudents.toLocaleString()}
+        </Text>
+      </View>
+
+      <View style={styles.statsGrid}>
+        <View style={styles.smallCard}>
+          <Ionicons name="shield-checkmark" size={28} color="#1f8e4d" />
+          <Text style={styles.smallCardLabel}>Active Guards</Text>
+          <Text style={styles.smallCardValue}>{totalGuards}</Text>
+        </View>
+        <View style={styles.smallCard}>
+          <Ionicons name="car" size={28} color="#1f8e4d" />
+          <Text style={styles.smallCardLabel}>Vehicles Today</Text>
+          <Text style={styles.smallCardValue}>{vehiclesToday}</Text>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.chartCard}
+        activeOpacity={0.9}
+        onPress={() => setShowChartModal(true)}
+      >
+        <Text style={styles.chartTitle}>Peak Parking Hours</Text>
+        <Text style={styles.chartSubtitle}>Vehicle volume over time</Text>
+        <View style={styles.chartBars}>
+          <View style={[styles.bar, { height: 94 }]} />
+          <View style={[styles.bar, { height: 74 }]} />
+          <View style={[styles.bar, { height: 100 }]} />
+          <View style={[styles.bar, { height: 64 }]} />
+          <View style={[styles.bar, { height: 82 }]} />
+        </View>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  const renderUsersScreen = () => {
+    const displayed =
+      userType === "students" ? displayedStudents : displayedGuards;
+    return (
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.screenTitle}>Directory</Text>
+
+        <View style={styles.searchBox}>
+          <Ionicons
+            name="search"
+            size={18}
+            color="#9ca3af"
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search name or ID..."
+            placeholderTextColor="#d1d5db"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Ionicons name="close-circle" size={18} color="#9ca3af" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, userType === "students" && styles.tabActive]}
+            onPress={() => setUserType("students")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                userType === "students" && styles.tabTextActive,
+              ]}
+            >
+              {`Students (${students.length})`}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, userType === "guards" && styles.tabActive]}
+            onPress={() => setUserType("guards")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                userType === "guards" && styles.tabTextActive,
+              ]}
+            >
+              {`Guards (${guards.length})`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Merge Sort controls ── */}
+        <View style={styles.sortRow}>
+          <Text style={styles.sortLabel}>Sort:</Text>
+          {[
+            { key: "firstName", label: "Name" },
+            { key: "isActive", label: "Status" },
+            { key: "createdAt", label: "Date" },
+          ].map(({ key, label }) => (
+            <TouchableOpacity
+              key={key}
+              style={[styles.sortBtn, sortKey === key && styles.sortBtnActive]}
+              onPress={() => toggleSort(key)}
+            >
+              <Text
+                style={[
+                  styles.sortBtnText,
+                  sortKey === key && styles.sortBtnTextActive,
+                ]}
+              >
+                {`${label}${sortKey === key ? (sortOrder === "asc" ? " ↑" : " ↓") : ""}`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* ── Algorithm badge ── */}
+        {searchQuery.length > 0 && (
+          <View style={styles.algorithmBadge}>
+            <Ionicons name="flash" size={12} color="#1f8e4d" />
+            <Text style={styles.algorithmBadgeText}>
+              {`${displayed.length} result${displayed.length !== 1 ? "s" : ""} · Trie + Levenshtein · Merge Sort`}
+            </Text>
+          </View>
+        )}
+
+        {loadingUsers ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading users...</Text>
+          </View>
+        ) : (
+          <View style={styles.usersList}>
+            {displayed.map((user) => (
+              <TouchableOpacity key={user.id} style={styles.userCard}>
+                <View style={styles.userInfo}>
+                  <View style={styles.userAvatar}>
+                    <Ionicons
+                      name={userType === "students" ? "person" : "shield"}
+                      size={24}
+                      color="#6b7280"
+                    />
+                  </View>
+                  <View style={styles.userDetails}>
+                    <Text
+                      style={styles.userName}
+                    >{`${user.firstName} ${user.lastName}`}</Text>
+                    <Text style={styles.userID}>
+                      {userType === "students"
+                        ? user.studentId
+                        : user.employeeId}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.userStatus,
+                        { color: user.isActive ? "#10b981" : "#ef4444" },
+                      ]}
+                    >
+                      {user.isActive ? "● ACTIVE" : "● PENDING"}
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+              </TouchableOpacity>
+            ))}
+            {displayed.length === 0 && (
+              <View style={styles.emptyContainer}>
+                <Ionicons
+                  name={
+                    searchQuery
+                      ? "search-outline"
+                      : userType === "students"
+                        ? "people-outline"
+                        : "shield-outline"
+                  }
+                  size={48}
+                  color="#d1d5db"
+                />
+                <Text style={styles.emptyText}>
+                  {searchQuery
+                    ? `No matches for "${searchQuery}"`
+                    : "No users found"}
+                </Text>
+                {searchQuery.length > 0 && (
+                  <Text style={styles.emptySubText}>
+                    Fuzzy search checked — no close matches
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setCurrentScreen("new-account")}
+        >
+          <Ionicons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  };
+
+  const renderAuditLogsScreen = () => (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.screenTitle}>Master Audit Logs</Text>
+      <Text style={styles.screenSubtitle}>Campus-wide vehicle activity</Text>
+
+      <View style={styles.dateRangeContainer}>
+        <Text style={styles.dateLabel}>DATE & TIME RANGE QUERY</Text>
+        <View style={styles.dateInputsRow}>
+          <View style={styles.dateInput}>
+            <Text style={styles.dateInputLabel}>{dateFrom}</Text>
+          </View>
+          <Text style={styles.dateSeparator}>-</Text>
+          <View style={styles.dateInput}>
+            <Text style={styles.dateInputLabel}>{dateTo}</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.searchBox}>
+        <Ionicons
+          name="search"
+          size={18}
+          color="#9ca3af"
+          style={styles.searchIcon}
+        />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by plate, name, or role..."
+          placeholderTextColor="#d1d5db"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+
+      <View style={styles.auditLogsList}>
+        {mockAuditLogs.map((log) => (
+          <View key={log.id} style={styles.auditLogCard}>
+            <View style={styles.auditLogIcon}>
+              <Ionicons
+                name={
+                  log.type === "IN" ? "arrow-down-outline" : "arrow-up-outline"
+                }
+                size={20}
+                color={log.type === "IN" ? "#10b981" : "#ef4444"}
+              />
+            </View>
+            <View style={styles.auditLogContent}>
+              <Text style={styles.auditLogPlate}>{log.plate}</Text>
+              <Text style={styles.auditLogName}>{log.name}</Text>
+              <Text style={styles.auditLogRole}>{log.role}</Text>
+              <Text style={styles.auditLogTime}>{log.time}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+
+  const renderNewAccountScreen = () => (
+    <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.backButton}>
+        <TouchableOpacity onPress={() => setCurrentScreen("users")}>
+          <Ionicons name="chevron-back" size={24} color="#1d2934" />
+        </TouchableOpacity>
+        <Text style={styles.newAccountTitle}>New Account</Text>
+      </View>
+
+      {/* Messages */}
+      {!!errorMessage && (
+        <View style={styles.errorAlert}>
+          <Ionicons name="alert-circle" size={18} color="#ef4444" />
+          <Text style={styles.errorAlertText}>{errorMessage}</Text>
+        </View>
+      )}
+
+      {!!successMessage && (
+        <View style={styles.successAlert}>
+          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+          <Text style={styles.successAlertText}>{successMessage}</Text>
+        </View>
+      )}
+
+      <Text style={styles.roleSetupLabel}>ROLE SETUP</Text>
+      <View style={styles.roleButtonsContainer}>
+        <TouchableOpacity
+          style={[
+            styles.roleButton,
+            newAccountRole === "student" && styles.roleButtonActive,
+          ]}
+          onPress={() => setNewAccountRole("student")}
+          disabled={creatingAccount}
+        >
+          <Ionicons
+            name="person"
+            size={20}
+            color={newAccountRole === "student" ? "#fff" : "#6b7280"}
+          />
+          <Text
+            style={[
+              styles.roleButtonText,
+              newAccountRole === "student" && styles.roleButtonTextActive,
+            ]}
+          >
+            Student
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.roleButton,
+            newAccountRole === "guard" && styles.roleButtonActive,
+          ]}
+          onPress={() => setNewAccountRole("guard")}
+          disabled={creatingAccount}
+        >
+          <Ionicons
+            name="shield"
+            size={20}
+            color={newAccountRole === "guard" ? "#fff" : "#6b7280"}
+          />
+          <Text
+            style={[
+              styles.roleButtonText,
+              newAccountRole === "guard" && styles.roleButtonTextActive,
+            ]}
+          >
+            Guard
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.personalDetailsLabel}>PERSONAL DETAILS</Text>
+
+      <Text style={styles.fieldLabel}>First Name *</Text>
+      <TextInput
+        style={styles.textInput}
+        placeholder="Juan"
+        placeholderTextColor="#d1d5db"
+        editable={!creatingAccount}
+        value={newAccountData.firstName}
+        onChangeText={(value) => handleNewAccountChange("firstName", value)}
+      />
+
+      <Text style={styles.fieldLabel}>Last Name *</Text>
+      <TextInput
+        style={styles.textInput}
+        placeholder="Dela Cruz"
+        placeholderTextColor="#d1d5db"
+        editable={!creatingAccount}
+        value={newAccountData.lastName}
+        onChangeText={(value) => handleNewAccountChange("lastName", value)}
+      />
+
+      <Text style={styles.fieldLabel}>
+        {"Suffix "}
+        <Text style={styles.fieldLabelOptional}>{"(Optional)"}</Text>
+      </Text>
+      <TextInput
+        style={styles.textInput}
+        placeholder="Jr., Sr., II, III, IV"
+        placeholderTextColor="#d1d5db"
+        editable={!creatingAccount}
+        value={newAccountData.suffix}
+        onChangeText={(value) => handleNewAccountChange("suffix", value)}
+      />
+
+      <Text style={styles.fieldLabel}>
+        {"Middle Name "}
+        <Text style={styles.fieldLabelOptional}>{"(Optional)"}</Text>
+      </Text>
+      <TextInput
+        style={styles.textInput}
+        placeholder="e.g. Santos"
+        placeholderTextColor="#d1d5db"
+        editable={!creatingAccount}
+        value={newAccountData.middleName}
+        onChangeText={(value) => handleNewAccountChange("middleName", value)}
+      />
+
+      <Text style={styles.fieldLabel}>Email * (@gmail.com)</Text>
+      <TextInput
+        style={styles.textInput}
+        placeholder="name@gmail.com"
+        placeholderTextColor="#d1d5db"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        editable={!creatingAccount}
+        value={newAccountData.email}
+        onChangeText={(value) => handleNewAccountChange("email", value)}
+      />
+
+      {newAccountRole === "student" ? (
+        <>
+          <Text style={styles.fieldLabel}>{"Student ID * (XX-XXXX)"}</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="23-1832"
+            placeholderTextColor="#d1d5db"
+            keyboardType="numeric"
+            maxLength={7}
+            editable={!creatingAccount}
+            value={newAccountData.studentId}
+            onChangeText={(value) => handleNewAccountChange("studentId", value)}
+          />
+
+          <Text style={styles.fieldLabel}>{"Vehicle Type"}</Text>
+          <View style={styles.vehicleTypeRow}>
+            {(["Car", "Motorcycle", "Ebike", "Others"] as const).map((type) => {
+              const isOthers = type === "Others";
+              const isActive = isOthers
+                ? !["Car", "Motorcycle", "Ebike"].includes(
+                    newAccountData.vehicleType,
+                  )
+                : newAccountData.vehicleType === type;
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.vehicleTypeBtn,
+                    isActive && styles.vehicleTypeBtnActive,
+                  ]}
+                  onPress={() => {
+                    if (!creatingAccount) {
+                      handleNewAccountChange(
+                        "vehicleType",
+                        isOthers ? "Others" : type,
+                      );
+                    }
+                  }}
+                  disabled={creatingAccount}
+                >
+                  <Ionicons
+                    name={
+                      type === "Car"
+                        ? "car-outline"
+                        : type === "Motorcycle"
+                          ? "bicycle-outline"
+                          : type === "Ebike"
+                            ? "flash-outline"
+                            : "pencil-outline"
+                    }
+                    size={14}
+                    color={isActive ? "#fff" : "#6b7280"}
+                  />
+                  <Text
+                    style={[
+                      styles.vehicleTypeBtnText,
+                      isActive && styles.vehicleTypeBtnTextActive,
+                    ]}
+                  >
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {!["Car", "Motorcycle", "Ebike"].includes(
+            newAccountData.vehicleType,
+          ) && (
+            <TextInput
+              style={[styles.textInput, { marginTop: -8 }]}
+              placeholder="Specify vehicle type..."
+              placeholderTextColor="#d1d5db"
+              editable={!creatingAccount}
+              value={
+                newAccountData.vehicleType === "Others"
+                  ? ""
+                  : newAccountData.vehicleType
+              }
+              onChangeText={(value) =>
+                handleNewAccountChange("vehicleType", value || "Others")
+              }
+            />
+          )}
+
+          <Text style={styles.fieldLabel}>{"Vehicle Plate Number"}</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="ABC-123"
+            placeholderTextColor="#d1d5db"
+            autoCapitalize="characters"
+            editable={!creatingAccount}
+            value={newAccountData.vehiclePlate}
+            onChangeText={(value) =>
+              handleNewAccountChange("vehiclePlate", value)
+            }
+          />
+        </>
+      ) : (
+        <>
+          <Text style={styles.fieldLabel}>{"Employee ID *"}</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="GRD-001"
+            placeholderTextColor="#d1d5db"
+            editable={!creatingAccount}
+            value={newAccountData.employeeId}
+            onChangeText={(value) =>
+              handleNewAccountChange("employeeId", value)
+            }
+          />
+        </>
+      )}
+
+      <View style={styles.infoBox}>
+        <Ionicons name="information-circle" size={18} color="#1f8e4d" />
+        <Text style={styles.infoText}>
+          An email verification link will be sent. User must verify their email
+          and reset their password before the account becomes active.
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={[
+          styles.createButton,
+          creatingAccount && styles.createButtonDisabled,
+        ]}
+        onPress={handleCreateAccount}
+        disabled={creatingAccount}
+      >
+        {creatingAccount ? (
+          <>
+            <Text style={styles.createButtonText}>Creating...</Text>
+          </>
+        ) : (
+          <Text style={styles.createButtonText}>Create Account</Text>
+        )}
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  const renderChartModal = () => (
+    <Modal
+      visible={showChartModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowChartModal(false)}
+    >
+      <SafeAreaView style={styles.modalSafeArea}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={() => setShowChartModal(false)}>
+            <Ionicons name="close" size={28} color="#1d2934" />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>Peak Parking Hours</Text>
+          <View style={{ width: 28 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={styles.modalContent}>
+          <Text style={styles.modalSubtitle}>Vehicle volume over time</Text>
+
+          <View style={styles.expandedChartContainer}>
+            <View style={styles.yAxisLabels}>
+              <Text style={styles.yAxisLabel}>160</Text>
+              <Text style={styles.yAxisLabel}>120</Text>
+              <Text style={styles.yAxisLabel}>80</Text>
+              <Text style={styles.yAxisLabel}>40</Text>
+              <Text style={styles.yAxisLabel}>0</Text>
+            </View>
+
+            <View style={styles.chartContent}>
+              <View style={styles.expandedChartBars}>
+                <View style={[styles.expandedBar, { height: "59%" }]} />
+                <View style={[styles.expandedBar, { height: "46%" }]} />
+                <View style={[styles.expandedBar, { height: "62%" }]} />
+                <View style={[styles.expandedBar, { height: "40%" }]} />
+                <View style={[styles.expandedBar, { height: "51%" }]} />
+                <View style={[styles.expandedBar, { height: "75%" }]} />
+                <View style={[styles.expandedBar, { height: "50%" }]} />
+              </View>
+              <View style={styles.xAxisLabels}>
+                <Text style={styles.xAxisLabel}>6 AM</Text>
+                <Text style={styles.xAxisLabel}>8 AM</Text>
+                <Text style={styles.xAxisLabel}>10 AM</Text>
+                <Text style={styles.xAxisLabel}>12 PM</Text>
+                <Text style={styles.xAxisLabel}>2 PM</Text>
+                <Text style={styles.xAxisLabel}>4 PM</Text>
+                <Text style={styles.xAxisLabel}>6 PM</Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <LoaderComponent
@@ -2591,6 +3189,160 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     alignItems: "center",
     justifyContent: "center",
+  },
+  emptyContainer: {
+    paddingVertical: 60,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#9ca3af",
+    marginTop: 12,
+  },
+  createButtonDisabled: {
+    opacity: 0.6,
+  },
+  // Modal Styles
+  modalSafeArea: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 22,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1d2934",
+  },
+  modalContent: {
+    padding: 22,
+    paddingBottom: 40,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#6f7f93",
+    marginBottom: 24,
+  },
+  expandedChartContainer: {
+    flexDirection: "row",
+    height: 320,
+    marginBottom: 20,
+  },
+  yAxisLabels: {
+    justifyContent: "space-between",
+    width: 40,
+    paddingRight: 12,
+    alignItems: "flex-end",
+  },
+  yAxisLabel: {
+    fontSize: 11,
+    color: "#9ca3af",
+    fontWeight: "600",
+  },
+  chartContent: {
+    flex: 1,
+  },
+  expandedChartBars: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    height: 280,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  expandedBar: {
+    width: "12%",
+    borderRadius: 10,
+    backgroundColor: "#1d2934",
+  },
+  xAxisLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 12,
+    paddingHorizontal: 8,
+  },
+  xAxisLabel: {
+    fontSize: 11,
+    color: "#9ca3af",
+    fontWeight: "600",
+    width: "12%",
+    textAlign: "center",
+  },
+  // New alert and info styles
+  errorAlert: {
+    backgroundColor: "#fee2e2",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    borderLeftWidth: 4,
+    borderLeftColor: "#ef4444",
+  },
+  errorAlertText: {
+    color: "#991b1b",
+    fontSize: 13,
+    fontWeight: "600",
+    marginLeft: 12,
+    flex: 1,
+  },
+  successAlert: {
+    backgroundColor: "#dcfce7",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    borderLeftWidth: 4,
+    borderLeftColor: "#10b981",
+  },
+  successAlertText: {
+    color: "#166534",
+    fontSize: 13,
+    fontWeight: "600",
+    marginLeft: 12,
+    flex: 1,
+  },
+  infoBox: {
+    backgroundColor: "#ecfdf5",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: "#1f8e4d",
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  infoText: {
+    color: "#065f46",
+    fontSize: 12,
+    fontWeight: "500",
+    marginLeft: 12,
+    flex: 1,
+    lineHeight: 18,
+  },
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#9ca3af",
+    marginTop: 12,
   },
   emptyContainer: {
     paddingVertical: 60,
