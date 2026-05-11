@@ -89,21 +89,21 @@ export default function ActivityScreen() {
               <Ionicons name="car-sport" size={18} color="#1f8e4d" />
             </View>
             <Text style={styles.statNumber}>{MOCK_ACTIVITY_LOGS.length}</Text>
-            <Text style={styles.statLabel}>Total Vehicles</Text>
+            <Text style={styles.statLabel}>Total Entries</Text>
           </View>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
               <Ionicons name="location-outline" size={18} color="#1f8e4d" />
             </View>
             <Text style={styles.statNumber}>{insideCount}</Text>
-            <Text style={styles.statLabel}>Inside Campus</Text>
+            <Text style={styles.statLabel}>Currently On Campus</Text>
           </View>
           <View style={styles.statCard}>
             <View style={styles.statIcon}>
               <Ionicons name="exit-outline" size={18} color="#1f8e4d" />
             </View>
             <Text style={styles.statNumber}>{departedCount}</Text>
-            <Text style={styles.statLabel}>Departed</Text>
+            <Text style={styles.statLabel}>Total Departed</Text>
           </View>
         </View>
 
@@ -344,15 +344,21 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 10,
     marginBottom: 20,
   },
   statCard: {
     flex: 1,
+    minWidth: 100,
+    maxWidth: 120,
     backgroundColor: "#fff",
     borderRadius: 24,
     padding: 18,
-    marginRight: 10,
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 16,
@@ -380,6 +386,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.8,
     fontWeight: "700",
+    textAlign: "center",
   },
   searchCard: {
     flexDirection: "row",

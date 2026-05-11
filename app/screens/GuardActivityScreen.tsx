@@ -107,7 +107,7 @@ export default function GuardActivityScreen() {
                 <Ionicons name="arrow-forward" size={24} color="#ff6b6b" />
               </View>
               <Text style={styles.statValue}>{insideCount}</Text>
-              <Text style={styles.statLabel}>On Campus</Text>
+              <Text style={styles.statLabel}>Currently On Campus</Text>
             </View>
 
             <View style={styles.statCard}>
@@ -115,7 +115,7 @@ export default function GuardActivityScreen() {
                 <Ionicons name="exit-outline" size={24} color="#ffa500" />
               </View>
               <Text style={styles.statValue}>{departedCount}</Text>
-              <Text style={styles.statLabel}>Departed</Text>
+              <Text style={styles.statLabel}>Total Departed</Text>
             </View>
           </View>
 
@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
   },
   contentShell: {
     width: "100%",
-    maxWidth: 560,
+    maxWidth: Platform.OS === "web" ? 1200 : 560,
     alignSelf: "center",
   },
   header: {
@@ -395,13 +395,36 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  logoutText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
   statsGrid: {
     flexDirection: "row",
     gap: 12,
     marginBottom: 16,
+    flexWrap: "wrap",
+    justifyContent: "center",
+    alignItems: "center",
   },
   statCard: {
-    flex: 1,
+    flex: Platform.OS === "web" ? 0 : 1,
+    width: Platform.OS === "web" ? "calc(33.333% - 8px)" : "auto",
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
@@ -430,6 +453,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#8f9ba7",
     fontWeight: "700",
+    textAlign: "center",
   },
   searchCard: {
     backgroundColor: "#fff",
@@ -523,7 +547,7 @@ const styles = StyleSheet.create({
   },
   columnText: {
     color: "#8f9ba7",
-    fontSize: 10,
+    fontSize: Platform.OS === "web" ? 12 : 10,
     fontWeight: "700",
     letterSpacing: 0.4,
   },
@@ -556,17 +580,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#edf2f7",
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: Platform.OS === "web" ? 16 : 14,
     alignItems: "center",
   },
   logId: {
     color: "#2d3a4b",
     fontWeight: "800",
-    fontSize: 12,
+    fontSize: Platform.OS === "web" ? 14 : 12,
   },
   logName: {
     color: "#1f2d3d",
-    fontSize: 13,
+    fontSize: Platform.OS === "web" ? 14 : 13,
     fontWeight: "800",
     marginBottom: 2,
   },

@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { CustomAlert, AlertAction } from "../../components/CustomAlert";
+import { AuthService } from "../../services/authService";
 
 type ScannedPayload = {
   app?: string;
@@ -43,6 +44,11 @@ export default function GuardScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scannedData, setScannedData] = useState<string | null>(null);
   const scannedPayload = scannedData ? parseScannedPayload(scannedData) : null;
+
+  const handleLogout = async () => {
+    await AuthService.logout();
+    router.push("/");
+  };
 
   // Alert state
   const [alertVisible, setAlertVisible] = useState(false);
@@ -173,13 +179,21 @@ export default function GuardScreen() {
           <Text style={styles.headerTitle}>Guard Portal</Text>
           <Text style={styles.headerSubtitle}>Gate Scanner</Text>
         </View>
-        <TouchableOpacity
-          style={styles.activityButton}
-          onPress={() => router.push({ pathname: "/guard-activity" })}
-        >
-          <Ionicons name="bar-chart-outline" size={20} color="#fff" />
-        </TouchableOpacity>
-        <Ionicons name="scan-outline" size={26} color="#fff" />
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.activityButton}
+            onPress={() => router.push({ pathname: "/guard-activity" })}
+          >
+            <Ionicons name="bar-chart-outline" size={20} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#fff" />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -360,6 +374,25 @@ const styles = StyleSheet.create({
     color: "#d6f0d9",
     marginTop: 4,
     fontSize: 13,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  logoutText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
   scannerCard: {
     backgroundColor: "#ffffff",

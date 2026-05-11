@@ -143,6 +143,7 @@ export default function RootLayout() {
           options={{
             title: "Add Visitor",
             headerBackTitle: "Back",
+            headerShown: false,
           }}
         />
         <Stack.Screen

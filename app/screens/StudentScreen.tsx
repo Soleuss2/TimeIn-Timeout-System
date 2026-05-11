@@ -720,23 +720,6 @@ export default function StudentScreen() {
             </View>
           </Animated.View>
 
-          <View style={styles.noteCard}>
-            <View style={styles.noteIcon}>
-              <Ionicons
-                name="information-circle-outline"
-                size={18}
-                color="#216b43"
-              />
-            </View>
-            <View style={styles.noteCopy}>
-              <Text style={styles.noteTitle}>Best scanning quality</Text>
-              <Text style={styles.noteText}>
-                Keep the screen brightness high and center the QR code under the
-                scanner for a faster gate check.
-              </Text>
-            </View>
-          </View>
-
           {/* Logout Button with animation */}
           <Animated.View
             style={[

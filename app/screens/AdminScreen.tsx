@@ -433,27 +433,36 @@ export default function AdminScreen() {
   const renderOverviewScreen = () => (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.welcome}>Welcome, Admin</Text>
-      <Text style={styles.welcomeSub}>
-        Here's the campus overview for today.
-      </Text>
+      <Text style={styles.welcomeSub}>Here's the campus overview for today.</Text>
 
       <View style={styles.overviewCard}>
-        <Text style={styles.overviewTitle}>Total Registered Students</Text>
-        <Text style={styles.overviewValue}>
-          {totalStudents.toLocaleString()}
-        </Text>
+        <View style={styles.overviewCardRow}>
+          <View style={styles.overviewCardCopy}>
+            <Text style={styles.overviewTitle}>Total Registered Students</Text>
+            <Text style={styles.overviewValue}>
+              {totalStudents.toLocaleString()}
+            </Text>
+          </View>
+          <View style={styles.overviewIconContainer}>
+            <Ionicons name="people-outline" size={26} color="#1d2934" />
+          </View>
+        </View>
       </View>
 
       <View style={styles.statsGrid}>
         <View style={styles.smallCard}>
-          <Ionicons name="shield-checkmark" size={28} color="#1f8e4d" />
-          <Text style={styles.smallCardLabel}>Active Guards</Text>
+          <View style={styles.smallCardIconContainer}>
+            <Ionicons name="shield-checkmark" size={20} color="#1d2934" />
+          </View>
           <Text style={styles.smallCardValue}>{totalGuards}</Text>
+          <Text style={styles.smallCardLabel}>Active Guards</Text>
         </View>
         <View style={styles.smallCard}>
-          <Ionicons name="car" size={28} color="#1f8e4d" />
-          <Text style={styles.smallCardLabel}>Vehicles Today</Text>
+          <View style={styles.smallCardIconContainer}>
+            <Ionicons name="car" size={20} color="#1d2934" />
+          </View>
           <Text style={styles.smallCardValue}>{vehiclesToday}</Text>
+          <Text style={styles.smallCardLabel}>Vehicles Today</Text>
         </View>
       </View>
 
@@ -464,12 +473,41 @@ export default function AdminScreen() {
       >
         <Text style={styles.chartTitle}>Peak Parking Hours</Text>
         <Text style={styles.chartSubtitle}>Vehicle volume over time</Text>
-        <View style={styles.chartBars}>
-          <View style={[styles.bar, { height: 94 }]} />
-          <View style={[styles.bar, { height: 74 }]} />
-          <View style={[styles.bar, { height: 100 }]} />
-          <View style={[styles.bar, { height: 64 }]} />
-          <View style={[styles.bar, { height: 82 }]} />
+
+        <View style={styles.chartPreview}>
+          <View style={styles.chartYAxis}>
+            <Text style={styles.chartAxisLabel}>160</Text>
+            <Text style={styles.chartAxisLabel}>120</Text>
+            <Text style={styles.chartAxisLabel}>80</Text>
+            <Text style={styles.chartAxisLabel}>40</Text>
+            <Text style={styles.chartAxisLabel}>0</Text>
+          </View>
+
+          <View style={styles.chartPlot}>
+            <View style={[styles.chartGridLine, { top: 8 }]} />
+            <View style={[styles.chartGridLine, { top: 34 }]} />
+            <View style={[styles.chartGridLine, { top: 60 }]} />
+            <View style={[styles.chartGridLine, { top: 86 }]} />
+
+            <View style={styles.chartBarsRow}>
+              <View style={[styles.bar, { height: 40 }]} />
+              <View style={[styles.bar, { height: 120 }]} />
+              <View style={[styles.bar, { height: 85 }]} />
+              <View style={[styles.bar, { height: 90 }]} />
+              <View style={[styles.bar, { height: 150 }]} />
+              <View style={[styles.bar, { height: 110 }]} />
+              <View style={[styles.bar, { height: 60 }]} />
+            </View>
+            <View style={styles.chartXAxisLabels}>
+              <Text style={styles.chartXAxisLabel}>6 AM</Text>
+              <Text style={styles.chartXAxisLabel}>8 AM</Text>
+              <Text style={styles.chartXAxisLabel}>10 AM</Text>
+              <Text style={styles.chartXAxisLabel}>12 PM</Text>
+              <Text style={styles.chartXAxisLabel}>2 PM</Text>
+              <Text style={styles.chartXAxisLabel}>4 PM</Text>
+              <Text style={styles.chartXAxisLabel}>6 PM</Text>
+            </View>
+          </View>
         </View>
       </TouchableOpacity>
     </ScrollView>
@@ -492,7 +530,7 @@ export default function AdminScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="Search name or ID..."
-            placeholderTextColor="#d1d5db"
+            placeholderTextColor="#94a3b8"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -514,7 +552,7 @@ export default function AdminScreen() {
                 userType === "students" && styles.tabTextActive,
               ]}
             >
-              {`Students (${students.length})`}
+              Students
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -527,45 +565,10 @@ export default function AdminScreen() {
                 userType === "guards" && styles.tabTextActive,
               ]}
             >
-              {`Guards (${guards.length})`}
+              Guards
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* ── Merge Sort controls ── */}
-        <View style={styles.sortRow}>
-          <Text style={styles.sortLabel}>Sort:</Text>
-          {[
-            { key: "firstName", label: "Name" },
-            { key: "isActive", label: "Status" },
-            { key: "createdAt", label: "Date" },
-          ].map(({ key, label }) => (
-            <TouchableOpacity
-              key={key}
-              style={[styles.sortBtn, sortKey === key && styles.sortBtnActive]}
-              onPress={() => toggleSort(key)}
-            >
-              <Text
-                style={[
-                  styles.sortBtnText,
-                  sortKey === key && styles.sortBtnTextActive,
-                ]}
-              >
-                {`${label}${sortKey === key ? (sortOrder === "asc" ? " ↑" : " ↓") : ""}`}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* ── Algorithm badge ── */}
-        {searchQuery.length > 0 && (
-          <View style={styles.algorithmBadge}>
-            <Ionicons name="flash" size={12} color="#1f8e4d" />
-            <Text style={styles.algorithmBadgeText}>
-              {`${displayed.length} result${displayed.length !== 1 ? "s" : ""} · Trie + Levenshtein · Merge Sort`}
-            </Text>
-          </View>
-        )}
 
         {loadingUsers ? (
           <View style={styles.loadingContainer}>
@@ -578,9 +581,13 @@ export default function AdminScreen() {
                 <View style={styles.userInfo}>
                   <View style={styles.userAvatar}>
                     <Ionicons
-                      name={userType === "students" ? "person" : "shield"}
-                      size={24}
-                      color="#6b7280"
+                      name={
+                        userType === "students"
+                          ? "person-outline"
+                          : "shield-checkmark"
+                      }
+                      size={22}
+                      color="#64748b"
                     />
                   </View>
                   <View style={styles.userDetails}>
@@ -592,14 +599,25 @@ export default function AdminScreen() {
                         ? user.studentId
                         : user.employeeId}
                     </Text>
-                    <Text
+                    <View
                       style={[
-                        styles.userStatus,
-                        { color: user.isActive ? "#10b981" : "#ef4444" },
+                        styles.statusPill,
+                        user.isActive
+                          ? styles.statusPillActive
+                          : styles.statusPillInactive,
                       ]}
                     >
-                      {user.isActive ? "● ACTIVE" : "● PENDING"}
-                    </Text>
+                      <Text
+                        style={[
+                          styles.statusPillText,
+                          user.isActive
+                            ? styles.statusPillTextActive
+                            : styles.statusPillTextInactive,
+                        ]}
+                      >
+                        {user.isActive ? "ACTIVE" : "INACTIVE"}
+                      </Text>
+                    </View>
                   </View>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
@@ -1046,17 +1064,21 @@ export default function AdminScreen() {
         <StatusBar barStyle="light-content" backgroundColor="#1d2934" />
       )}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Admin Portal</Text>
-        <Text style={styles.headerSubtitle}>System Management</Text>
+        <View style={styles.headerCopy}>
+          <Text style={styles.headerTitle}>Admin Portal</Text>
+          <Text style={styles.headerSubtitle}>System Management</Text>
+        </View>
         <TouchableOpacity style={styles.headerButton} onPress={handleLogout}>
           <Ionicons name="exit-outline" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      {currentScreen === "overview" && renderOverviewScreen()}
-      {currentScreen === "users" && renderUsersScreen()}
-      {currentScreen === "audit-logs" && renderAuditLogsScreen()}
-      {currentScreen === "new-account" && renderNewAccountScreen()}
+      <View style={styles.body}>
+        {currentScreen === "overview" && renderOverviewScreen()}
+        {currentScreen === "users" && renderUsersScreen()}
+        {currentScreen === "audit-logs" && renderAuditLogsScreen()}
+        {currentScreen === "new-account" && renderNewAccountScreen()}
+      </View>
 
       {currentScreen !== "new-account" && (
         <View style={styles.bottomNav}>
@@ -1136,28 +1158,32 @@ export default function AdminScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#f0f4f8",
+    backgroundColor: "#1d2934",
   },
   header: {
     backgroundColor: "#1d2934",
     paddingHorizontal: 22,
-    paddingTop: 20,
+    paddingTop: 22,
     paddingBottom: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
+  headerCopy: {
+    flex: 1,
+    paddingRight: 12,
+  },
   headerTitle: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: "800",
-    flex: 1,
+    letterSpacing: -0.2,
   },
   headerSubtitle: {
     color: "#9ca3af",
-    fontSize: 12,
-    marginLeft: 0,
-    marginBottom: 8,
+    fontSize: 13,
+    marginTop: 4,
+    fontWeight: "500",
   },
   headerButton: {
     width: 42,
@@ -1167,12 +1193,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  body: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 34,
+    borderTopRightRadius: 34,
+    overflow: "hidden",
+  },
   container: {
-    padding: 22,
-    paddingBottom: 100,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 110,
   },
   welcome: {
-    fontSize: 26,
+    fontSize: 32,
     fontWeight: "800",
     color: "#1d2934",
     marginBottom: 6,
@@ -1194,27 +1228,45 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   overviewCard: {
-    backgroundColor: "#fff",
-    borderRadius: 28,
-    padding: 24,
+    backgroundColor: "#f8fafc",
+    borderRadius: 20,
+    padding: 18,
     marginBottom: 20,
     shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowRadius: 18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
     elevation: 5,
+    borderWidth: 1,
+    borderColor: "#eef2f6",
+  },
+  overviewCardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  overviewCardCopy: {
+    flex: 1,
+    paddingRight: 12,
   },
   overviewTitle: {
     color: "#6f7f93",
-    marginBottom: 10,
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 1,
+    marginBottom: 8,
+    fontSize: 14,
     fontWeight: "600",
   },
   overviewValue: {
-    fontSize: 36,
-    fontWeight: "800",
+    fontSize: 40,
+    fontWeight: "900",
     color: "#1d2934",
+  },
+  overviewIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "#e5e7eb",
+    justifyContent: "center",
+    alignItems: "center",
   },
   statsGrid: {
     flexDirection: "row",
@@ -1224,130 +1276,189 @@ const styles = StyleSheet.create({
   },
   smallCard: {
     flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 24,
+    backgroundColor: "#f8fafc",
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#eef2f6",
+  },
+  smallCardIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#e5e7eb",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  smallCardLabel: {
+    color: "#6f7f93",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  smallCardValue: {
+    fontSize: 34,
+    fontWeight: "900",
+    color: "#1d2934",
+    marginBottom: 2,
+  },
+  chartCard: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 20,
     padding: 18,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 16,
-    elevation: 4,
-    justifyContent: "center",
-  },
-  smallCardLabel: {
-    color: "#6f7f93",
-    fontSize: 12,
-    marginTop: 12,
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    fontWeight: "600",
-  },
-  smallCardValue: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#1d2934",
-  },
-  chartCard: {
-    backgroundColor: "#fff",
-    borderRadius: 28,
-    padding: 22,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
     elevation: 5,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#eef2f6",
   },
   chartTitle: {
     color: "#1d2934",
-    fontWeight: "700",
+    fontWeight: "800",
     marginBottom: 6,
-    fontSize: 16,
+    fontSize: 22,
   },
   chartSubtitle: {
     color: "#9ca3af",
-    fontSize: 12,
-    marginBottom: 18,
+    fontSize: 15,
+    marginBottom: 16,
   },
-  chartBars: {
+  bar: {
+    width: 44,
+    borderRadius: 14,
+    backgroundColor: "#1d2934",
+  },
+
+  chartPreview: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+  },
+  chartYAxis: {
+    width: 36,
+    paddingRight: 8,
+    justifyContent: "space-between",
+    height: 190,
+  },
+  chartAxisLabel: {
+    fontSize: 12,
+    color: "#6f7f93",
+    fontWeight: "600",
+  },
+  chartPlot: {
+    flex: 1,
+    height: 190,
+    position: "relative",
+    justifyContent: "flex-end",
+  },
+  chartGridLine: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: "#e7eef6",
+    opacity: 1,
+  },
+  chartBarsRow: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    height: 120,
+    paddingHorizontal: 2,
+    paddingBottom: 6,
   },
-  bar: {
-    width: 28,
-    borderRadius: 14,
-    backgroundColor: "#1f8e4d",
+  chartXAxisLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingLeft: 2,
+    paddingRight: 2,
+    marginTop: 8,
+  },
+  chartXAxisLabel: {
+    fontSize: 12,
+    color: "#6f7f93",
+    fontWeight: "600",
   },
   // Users Directory Styles
   searchBox: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
+    backgroundColor: "#f8fafc",
+    borderRadius: 18,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#e7eef6",
   },
   searchIcon: {
     marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 16,
     color: "#1d2934",
     padding: 0,
+    fontWeight: "600",
   },
   tabsContainer: {
     flexDirection: "row",
     marginBottom: 20,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 18,
     padding: 4,
+    borderWidth: 1,
+    borderColor: "#e7eef6",
   },
   tab: {
     flex: 1,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: 14,
     alignItems: "center",
     backgroundColor: "transparent",
   },
   tabActive: {
     backgroundColor: "#fff",
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   tabText: {
-    color: "#9ca3af",
-    fontSize: 14,
-    fontWeight: "600",
+    color: "#64748b",
+    fontSize: 16,
+    fontWeight: "700",
   },
   tabTextActive: {
-    color: "#1f8e4d",
-    fontWeight: "700",
+    color: "#1d2934",
+    fontWeight: "800",
   },
   usersList: {
     marginBottom: 20,
   },
   userCard: {
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#eef2f6",
   },
   userInfo: {
     flexDirection: "row",
@@ -1355,48 +1466,69 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#f3f4f6",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#e7eef6",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginRight: 14,
   },
   userDetails: {
     flex: 1,
   },
   userName: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "800",
     color: "#1d2934",
     marginBottom: 4,
   },
   userID: {
-    fontSize: 12,
-    color: "#6f7f93",
-    marginBottom: 2,
+    fontSize: 14,
+    color: "#64748b",
+    marginBottom: 10,
+    fontWeight: "600",
   },
-  userStatus: {
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+  statusPill: {
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  statusPillActive: {
+    backgroundColor: "#dcfce7",
+  },
+  statusPillInactive: {
+    backgroundColor: "#e5e7eb",
+  },
+  statusPillText: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+  },
+  statusPillTextActive: {
+    color: "#166534",
+  },
+  statusPillTextInactive: {
+    color: "#64748b",
   },
   fab: {
     position: "absolute",
-    bottom: 90,
+    bottom: 110,
     right: 22,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#1f8e4d",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#1d2934",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#1f8e4d",
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 10,
   },
   // Algorithm styles
   sortRow: {
@@ -1679,19 +1811,19 @@ const styles = StyleSheet.create({
   // Bottom Navigation
   bottomNav: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 14,
+    left: 18,
+    right: 18,
     backgroundColor: "#fff",
     flexDirection: "row",
-    paddingBottom: 12,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
+    paddingBottom: 14,
+    paddingTop: 14,
+    borderRadius: 22,
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
   navButton: {
     flex: 1,
