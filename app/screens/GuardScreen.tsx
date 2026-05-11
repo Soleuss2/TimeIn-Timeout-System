@@ -3,22 +3,24 @@ import { Camera, CameraView } from "expo-camera";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { CustomAlert, AlertAction } from "../../components/CustomAlert";
+import { AlertAction, CustomAlert } from "../../components/CustomAlert";
+import { processGuardEntry } from "../../services/guardService";
 
 type ScannedPayload = {
   app?: string;
   role?: string;
   studentId?: string;
+  id?: string;
   username?: string;
   name?: string;
   plateNumber?: string | null;
@@ -65,29 +67,105 @@ export default function GuardScreen() {
     })();
   }, []);
 
-  const handleBarCodeScanned = ({ data }: { data: string }) => {
+  const handleBarCodeScanned = async ({ data }: { data: string }) => {
     if (scannedData) return;
     setScannedData(data);
+
     const parsed = parseScannedPayload(data);
 
-    setAlertConfig({
-      title: "QR Code Scanned",
-      message: parsed?.name
-        ? `${parsed.name}${parsed.studentId ? `\n${parsed.studentId}` : ""}`
-        : data,
-      type: "success",
-      buttons: [
-        {
-          text: "OK",
-          onPress: () => setAlertVisible(false),
-          style: "default",
-        },
-      ],
-    });
-    setAlertVisible(true);
+    // Validation: reject unparseable QR payloads
+    if (!parsed) {
+      setAlertConfig({
+        title: "Invalid QR Code",
+        message: "The scanned QR code could not be read. Please try again.",
+        type: "error",
+        buttons: [
+          {
+            text: "OK",
+            onPress: () => {
+              setAlertVisible(false);
+              setScannedData(null);
+            },
+            style: "default",
+          },
+        ],
+      });
+      setAlertVisible(true);
+      return;
+    }
+
+    // Support multiple roles — extract a unified user ID
+    const userId = parsed.studentId || parsed.id;
+
+    try {
+      const result = await processGuardEntry({
+        id: userId,
+        name: parsed.name,
+        role: parsed.role,
+        plateNumber: parsed.plateNumber ?? undefined,
+        method: "QR",
+      });
+
+      if (result.success) {
+        const actionLabel =
+          result.action === "TIMEIN"
+            ? "TIME IN SUCCESSFUL"
+            : "TIME OUT SUCCESSFUL";
+
+        setAlertConfig({
+          title: actionLabel,
+          message: `${result.name}${parsed.role ? `\n(${parsed.role.toUpperCase()})` : ""}`,
+          type: "success",
+          buttons: [
+            {
+              text: "OK",
+              onPress: () => {
+                setAlertVisible(false);
+                setScannedData(null); // Reset scanner for next scan
+              },
+              style: "default",
+            },
+          ],
+        });
+      } else {
+        setAlertConfig({
+          title: "Error",
+          message: result.message || "An unknown error occurred.",
+          type: "error",
+          buttons: [
+            {
+              text: "OK",
+              onPress: () => {
+                setAlertVisible(false);
+                setScannedData(null);
+              },
+              style: "default",
+            },
+          ],
+        });
+      }
+      setAlertVisible(true);
+    } catch (error) {
+      setAlertConfig({
+        title: "Error",
+        message: "Failed to process entry. Please check your connection.",
+        type: "error",
+        buttons: [
+          {
+            text: "OK",
+            onPress: () => {
+              setAlertVisible(false);
+              setScannedData(null);
+            },
+            style: "default",
+          },
+        ],
+      });
+      setAlertVisible(true);
+    }
   };
 
-  const handleManualSubmit = () => {
+  const handleManualSubmit = async () => {
     const trimmedPlate = plate.trim();
 
     if (!trimmedPlate) {
@@ -107,20 +185,63 @@ export default function GuardScreen() {
       return;
     }
 
-    setAlertConfig({
-      title: "Entry Saved",
-      message: `Plate ${trimmedPlate.toUpperCase()} has been recorded.`,
-      type: "success",
-      buttons: [
-        {
-          text: "OK",
-          onPress: () => setAlertVisible(false),
-          style: "default",
-        },
-      ],
-    });
-    setAlertVisible(true);
-    setPlate("");
+    try {
+      const result = await processGuardEntry({
+        plateNumber: trimmedPlate.toUpperCase(),
+        method: "MANUAL",
+        role: "visitor",
+      });
+
+      if (result.success) {
+        const actionLabel =
+          result.action === "TIMEIN"
+            ? `Vehicle ${trimmedPlate.toUpperCase()} ENTERED`
+            : `Vehicle ${trimmedPlate.toUpperCase()} EXITED`;
+
+        setAlertConfig({
+          title:
+            result.action === "TIMEIN" ? "ENTRY RECORDED" : "EXIT RECORDED",
+          message: actionLabel,
+          type: "success",
+          buttons: [
+            {
+              text: "OK",
+              onPress: () => setAlertVisible(false),
+              style: "default",
+            },
+          ],
+        });
+      } else {
+        setAlertConfig({
+          title: "Error",
+          message: result.message || "An unknown error occurred.",
+          type: "error",
+          buttons: [
+            {
+              text: "OK",
+              onPress: () => setAlertVisible(false),
+              style: "default",
+            },
+          ],
+        });
+      }
+      setAlertVisible(true);
+      setPlate("");
+    } catch (error) {
+      setAlertConfig({
+        title: "Error",
+        message: "Failed to process entry. Please check your connection.",
+        type: "error",
+        buttons: [
+          {
+            text: "OK",
+            onPress: () => setAlertVisible(false),
+            style: "default",
+          },
+        ],
+      });
+      setAlertVisible(true);
+    }
   };
 
   const handleResetScanner = () => {
