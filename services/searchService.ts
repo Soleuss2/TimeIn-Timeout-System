@@ -345,3 +345,132 @@ export function searchAndSort(
   const comparator = buildComparator<SearchableUser>(sortKey, sortOrder);
   return mergeSort(results, comparator);
 }
+
+// ─────────────────────────────────────────────
+// 6. AUDIT LOG DEDUPLICATOR — Hash Set for audit logs
+// ─────────────────────────────────────────────
+
+export interface AuditLog {
+  id: string;
+  plate: string;
+  name: string;
+  role: string;
+  timestamp: string;
+  action: "check-in" | "check-out";
+  status: "success" | "failed";
+  [key: string]: any;
+}
+
+/**
+ * Hash Set-based deduplicator for audit logs.
+ * O(1) lookups to prevent duplicate entries.
+ * Useful when fetching overlapping date ranges.
+ */
+export class AuditLogDeduplicator {
+  private plateTimeSet: Set<string> = new Set();
+
+  /**
+   * Add a log entry to the dedup set.
+   * Returns true if added, false if already exists.
+   */
+  addLog(log: AuditLog): boolean {
+    const key = `${log.plate}-${log.timestamp}`;
+    if (this.plateTimeSet.has(key)) {
+      return false; // Already exists
+    }
+    this.plateTimeSet.add(key);
+    return true;
+  }
+
+  /**
+   * Filter logs to only include unique plate-timestamp combinations.
+   * O(n) operation using Set internally.
+   */
+  deduplicateLogs(logs: AuditLog[]): AuditLog[] {
+    const result: AuditLog[] = [];
+    for (const log of logs) {
+      if (this.addLog(log)) {
+        result.push(log);
+      }
+    }
+    return result;
+  }
+
+  /** Clear the deduplication set */
+  clear(): void {
+    this.plateTimeSet.clear();
+  }
+}
+
+// ─────────────────────────────────────────────
+// 7. AUDIT LOG SORTING — Merge Sort for audit logs
+// ─────────────────────────────────────────────
+
+export type AuditSortKey = "timestamp" | "plate" | "name" | "role" | "status";
+
+/**
+ * Sort audit logs using Merge Sort (stable, O(n log n)).
+ * Preserves insertion order for equal elements.
+ */
+export function sortAuditLogs(
+  logs: AuditLog[],
+  sortKey: AuditSortKey = "timestamp",
+  sortOrder: SortOrder = "desc",
+): AuditLog[] {
+  const comparator = (a: AuditLog, b: AuditLog): number => {
+    let valA = a[sortKey];
+    let valB = b[sortKey];
+
+    // Handle timestamps specially — reverse chronological by default
+    if (sortKey === "timestamp") {
+      const dateA = new Date(valA).getTime();
+      const dateB = new Date(valB).getTime();
+      if (dateA < dateB) return sortOrder === "asc" ? -1 : 1;
+      if (dateA > dateB) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    }
+
+    // Handle string fields
+    if (typeof valA === "string" && typeof valB === "string") {
+      valA = valA.toLowerCase();
+      valB = valB.toLowerCase();
+    }
+
+    if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+    if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+    return 0;
+  };
+
+  return mergeSort([...logs], comparator);
+}
+
+/**
+ * Filter and sort audit logs.
+ * Combines deduplication + sorting in one pass.
+ */
+export function filterAndSortAuditLogs(
+  logs: AuditLog[],
+  searchQuery: string = "",
+  sortKey: AuditSortKey = "timestamp",
+  sortOrder: SortOrder = "desc",
+): AuditLog[] {
+  let filtered = logs;
+
+  // Filter by search query (plate, name, or role)
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase();
+    filtered = logs.filter(
+      (log) =>
+        log.plate.toLowerCase().includes(query) ||
+        log.name.toLowerCase().includes(query) ||
+        log.role.toLowerCase().includes(query),
+    );
+  }
+
+  // Deduplicate using Hash Set
+  const deduplicator = new AuditLogDeduplicator();
+  const deduplicated = deduplicator.deduplicateLogs(filtered);
+
+  // Sort using Merge Sort
+  return sortAuditLogs(deduplicated, sortKey, sortOrder);
+}

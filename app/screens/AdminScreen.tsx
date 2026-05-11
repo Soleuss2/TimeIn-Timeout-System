@@ -17,12 +17,10 @@ import {
   TouchableOpacity,
   View,
   TextInput,
-  FlatList,
   Modal,
-  Dimensions,
   Alert,
 } from "react-native";
-import { MOCK_ACTIVITY_LOGS } from "../../services/mockData";
+import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { LoaderComponent } from "../../components/LoaderComponent";
 import { CustomAlert, AlertAction } from "../../components/CustomAlert";
 import { AuthService } from "../../services/authService";
@@ -34,12 +32,10 @@ import {
   buildTrie,
   searchAndSort,
   SortOrder,
+  filterAndSortAuditLogs,
 } from "../../services/searchService";
 
-type AdminScreenType = "overview" | "users" | "audit-logs" | "new-account";
-
-const { height: screenHeight } = Dimensions.get("window");
-
+type AdminScreenType = "overview" | "users" | "audit-logs" | "new-account"
 export default function AdminScreen() {
   const router = useRouter();
   const authContext = useAuth();
@@ -47,7 +43,7 @@ export default function AdminScreen() {
 
   const [logoutLoading, setLogoutLoading] = useState(false);
 
-  // ── Alert state (reused from student portal) ────────────────────────────
+  // ── Alert state (reused from campus parking access portal) ────────────────────────────
   const [alertVisible, setAlertVisible] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{
     title: string;
@@ -63,17 +59,29 @@ export default function AdminScreen() {
   // ─────────────────────────────────────────────────────────────────────────
   const [currentScreen, setCurrentScreen] =
     useState<AdminScreenType>("overview");
-  const [userType, setUserType] = useState<"students" | "guards">("students");
+  const [userType, setUserType] = useState<"students" | "faculty" | "staff" | "guards">("students");
   const [searchQuery, setSearchQuery] = useState("");
-  const [dateFrom, setDateFrom] = useState("Oct 24, 00:00");
-  const [dateTo, setDateTo] = useState("Oct 24, 23:59");
-  const [newAccountRole, setNewAccountRole] = useState<"student" | "guard">(
+  
+  // ── Date & Time Picker state ─────────────────────────────────────────
+  const [dateFromDate, setDateFromDate] = useState(new Date());
+  const [dateToDate, setDateToDate] = useState(new Date());
+  const [dateFromInput, setDateFromInput] = useState("Oct 24, 00:00");
+  const [dateToInput, setDateToInput] = useState("Oct 24, 23:59");
+  const [showDateFromPicker, setShowDateFromPicker] = useState(false);
+  const [showTimeFromPicker, setShowTimeFromPicker] = useState(false);
+  const [showDateToPicker, setShowDateToPicker] = useState(false);
+  const [showTimeToPicker, setShowTimeToPicker] = useState(false);
+  // ─────────────────────────────────────────────────────────────────────
+  
+  const [newAccountRole, setNewAccountRole] = useState<"student" | "faculty" | "staff" | "guard">(
     "student",
   );
   const [showChartModal, setShowChartModal] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [students, setStudents] = useState<DirectoryUser[]>([]);
+  const [faculty, setFaculty] = useState<DirectoryUser[]>([]);
+  const [staff, setStaff] = useState<DirectoryUser[]>([]);
   const [guards, setGuards] = useState<DirectoryUser[]>([]);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -82,6 +90,8 @@ export default function AdminScreen() {
   const [sortKey, setSortKey] = useState("firstName");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const studentTrie = useRef<Trie>(new Trie());
+  const facultyTrie = useRef<Trie>(new Trie());
+  const staffTrie = useRef<Trie>(new Trie());
   const guardTrie = useRef<Trie>(new Trie());
   const duplicateChecker = useRef<DuplicateChecker>(new DuplicateChecker());
   // ─────────────────────────────────────────────────────────────────────────
@@ -97,6 +107,28 @@ export default function AdminScreen() {
         sortOrder,
       ),
     [students, searchQuery, sortKey, sortOrder],
+  );
+  const displayedFaculty = useMemo(
+    () =>
+      searchAndSort(
+        facultyTrie.current,
+        faculty,
+        searchQuery,
+        sortKey,
+        sortOrder,
+      ),
+    [faculty, searchQuery, sortKey, sortOrder],
+  );
+  const displayedStaff = useMemo(
+    () =>
+      searchAndSort(
+        staffTrie.current,
+        staff,
+        searchQuery,
+        sortKey,
+        sortOrder,
+      ),
+    [staff, searchQuery, sortKey, sortOrder],
   );
   const displayedGuards = useMemo(
     () =>
@@ -117,9 +149,16 @@ export default function AdminScreen() {
     shift: "",
   });
 
+  // ── Analytics state ────────────────────────────────────────────
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [vehiclesCount, setVehiclesCount] = useState(0);
+  const [parkingHoursData, setParkingHoursData] = useState<any[]>([]);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  // ─────────────────────────────────────────────────────────────────
+
   const totalStudents = students.length;
   const totalGuards = guards.length;
-  const vehiclesToday = 342;
+  const vehiclesToday = vehiclesCount;
 
   // Fetch ALL users once — Trie + Hash Set are built from this
   useEffect(() => {
@@ -131,19 +170,25 @@ export default function AdminScreen() {
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
-      const [studentsData, guardsData] = await Promise.all([
+      const [studentsData, facultyData, staffData, guardsData] = await Promise.all([
         AdminService.fetchStudents(), // no query — fetch all
+        AdminService.fetchFaculty(),
+        AdminService.fetchStaff(),
         AdminService.fetchGuards(),
       ]);
       setStudents(studentsData);
+      setFaculty(facultyData);
+      setStaff(staffData);
       setGuards(guardsData);
 
       // ── Build Trie indexes ─────────────────────────────────────────
       studentTrie.current = buildTrie(studentsData as any);
+      facultyTrie.current = buildTrie(facultyData as any);
+      staffTrie.current = buildTrie(staffData as any);
       guardTrie.current = buildTrie(guardsData as any);
 
       // ── Populate Hash Set for duplicate detection ──────────────────
-      duplicateChecker.current.load([...studentsData, ...guardsData]);
+      duplicateChecker.current.load([...studentsData, ...facultyData, ...staffData, ...guardsData]);
     } catch (error) {
       console.error("Error fetching users:", error);
       setErrorMessage("Failed to load users");
@@ -151,6 +196,90 @@ export default function AdminScreen() {
       setLoadingUsers(false);
     }
   };
+
+  const fetchAnalyticsData = useCallback(async () => {
+    setLoadingAnalytics(true);
+    try {
+      // Parse date strings to Date objects with better handling
+      let startDate: Date | undefined;
+      let endDate: Date | undefined;
+
+      if (dateFromInput && dateToInput) {
+        try {
+          // Try multiple date formats
+          // Format 1: MM/DD/YYYY HH:MM
+          // Format 2: Oct 24, 00:00 (month day, time)
+          // Format 3: ISO format
+          
+          const parseDateString = (dateStr: string): Date | null => {
+            if (!dateStr) return null;
+            
+            // Try ISO format first
+            let date = new Date(dateStr);
+            if (!isNaN(date.getTime())) return date;
+            
+            // Try MM/DD/YYYY HH:MM format
+            const mmddyyyyMatch = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+            if (mmddyyyyMatch) {
+              const [, month, day, year, hour, minute] = mmddyyyyMatch;
+              date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute));
+              if (!isNaN(date.getTime())) return date;
+            }
+            
+            // Try "Mon DD, HH:MM" format (e.g., "Oct 24, 00:00")
+            const monthDayMatch = dateStr.match(/([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{1,2}):(\d{2})/);
+            if (monthDayMatch) {
+              const [, monthStr, day, hour, minute] = monthDayMatch;
+              const monthMap: Record<string, number> = {
+                'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+                'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+              };
+              const month = monthMap[monthStr];
+              if (month !== undefined) {
+                const currentYear = new Date().getFullYear();
+                date = new Date(currentYear, month, parseInt(day), parseInt(hour), parseInt(minute));
+                if (!isNaN(date.getTime())) return date;
+              }
+            }
+            
+            return null;
+          };
+          
+          startDate = parseDateString(dateFromInput) || undefined;
+          endDate = parseDateString(dateToInput) || undefined;
+          
+          // If parsing failed, log warning but continue without date filters
+          if (!startDate || !endDate) {
+            console.warn("Failed to parse dates, fetching all logs without date filter");
+          }
+        } catch (e) {
+          console.error("Error parsing dates:", e);
+        }
+      }
+
+      const [logs, count, hoursData] = await Promise.all([
+        AdminService.fetchAuditLogs(startDate, endDate),
+        AdminService.getTodayVehicleCount(),
+        AdminService.getParkingHoursData(),
+      ]);
+
+      setAuditLogs(logs);
+      setVehiclesCount(count);
+      setParkingHoursData(hoursData);
+    } catch (error) {
+      console.error("Error fetching analytics data:", error);
+      setErrorMessage("Failed to load analytics data");
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  }, [dateFromInput, dateToInput]);
+
+  // Fetch analytics data for overview and audit logs screens
+  useEffect(() => {
+    if (currentScreen === "overview" || currentScreen === "audit-logs") {
+      void fetchAnalyticsData();
+    }
+  }, [currentScreen, fetchAnalyticsData]);
 
   // No debounce needed — search is now purely in-memory via Trie/Levenshtein
   const toggleSort = (key: string) => {
@@ -161,42 +290,6 @@ export default function AdminScreen() {
       setSortOrder("asc");
     }
   };
-
-  // Mock audit logs (keep for now)
-  const mockAuditLogs = [
-    {
-      id: "1",
-      plate: "ABC-123",
-      type: "IN",
-      name: "Juan Dela Cruz",
-      role: "Student",
-      time: "07:30 AM • Main Gate",
-    },
-    {
-      id: "2",
-      plate: "XYZ-987",
-      type: "IN",
-      name: "Maria Clara",
-      role: "Visitor",
-      time: "08:15 AM • Sum Gate",
-    },
-    {
-      id: "3",
-      plate: "DEF-456",
-      type: "OUT",
-      name: "Jose Rizal",
-      role: "Student",
-      time: "09:00 AM • Main Gate",
-    },
-    {
-      id: "4",
-      plate: "GHI-789",
-      type: "IN",
-      name: "Andres Bonifacio",
-      role: "Student",
-      time: "08:45 AM • Main Gate",
-    },
-  ];
 
   const handleLogout = () => {
     setAlertConfig({
@@ -236,6 +329,7 @@ export default function AdminScreen() {
                 setAlertVisible(true);
               }
             } catch (error) {
+              console.error("Logout error:", error);
               setLogoutLoading(false);
               setAlertConfig({
                 title: "Error",
@@ -257,10 +351,6 @@ export default function AdminScreen() {
       ],
     });
     setAlertVisible(true);
-  };
-
-  const getStatusColor = (status: string) => {
-    return status === "ACTIVE" ? "#10b981" : "#ef4444";
   };
 
   const handleNewAccountChange = (field: string, value: string) => {
@@ -332,7 +422,7 @@ export default function AdminScreen() {
       }
     }
 
-    if (newAccountRole === "guard") {
+    if (newAccountRole === "faculty" || newAccountRole === "staff" || newAccountRole === "guard") {
       if (!employeeId.trim()) {
         setErrorMessage("Employee ID is required");
         return false;
@@ -373,6 +463,19 @@ export default function AdminScreen() {
           email: newAccountData.email,
           role: "student",
           studentId: newAccountData.studentId,
+          vehiclePlate: newAccountData.vehiclePlate,
+          vehicleType: newAccountData.vehicleType,
+          adminId,
+        });
+      } else if (newAccountRole === "faculty" || newAccountRole === "staff") {
+        response = await AdminService.createFacultyStaffAccount({
+          firstName: newAccountData.firstName,
+          lastName: newAccountData.lastName,
+          suffix: newAccountData.suffix,
+          middleName: newAccountData.middleName,
+          email: newAccountData.email,
+          role: newAccountRole,
+          employeeId: newAccountData.employeeId,
           vehiclePlate: newAccountData.vehiclePlate,
           vehicleType: newAccountData.vehicleType,
           adminId,
@@ -428,6 +531,1078 @@ export default function AdminScreen() {
     } finally {
       setCreatingAccount(false);
     }
+  };
+
+  const renderOverviewScreen = () => (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.welcome}>Welcome, Admin</Text>
+      <Text style={styles.welcomeSub}>
+        Here&apos;s the campus overview for today.
+      </Text>
+
+      <View style={styles.overviewCard}>
+        <Text style={styles.overviewTitle}>Total Registered Students</Text>
+        <Text style={styles.overviewValue}>
+          {totalStudents.toLocaleString()}
+        </Text>
+      </View>
+
+      <View style={styles.statsGrid}>
+        <View style={styles.smallCard}>
+          <Ionicons name="shield-checkmark" size={28} color="#1f8e4d" />
+          <Text style={styles.smallCardLabel}>Active Guards</Text>
+          <Text style={styles.smallCardValue}>{totalGuards}</Text>
+        </View>
+        <View style={styles.smallCard}>
+          <Ionicons name="car" size={28} color="#1f8e4d" />
+          <Text style={styles.smallCardLabel}>Vehicles Today</Text>
+          <Text style={styles.smallCardValue}>{vehiclesToday}</Text>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.chartCard}
+        activeOpacity={0.85}
+        onPress={() => setShowChartModal(true)}
+      >
+        <Text style={styles.chartTitle}>Peak Parking Hours</Text>
+        <Text style={styles.chartSubtitle}>Vehicle volume over time</Text>
+        <View style={styles.chartBars}>
+          {parkingHoursData.length > 0 ? (
+            parkingHoursData.map((data, index) => (
+              <View key={index} style={styles.barWrapper}>
+                <View
+                  style={[styles.bar, { height: `${Math.min(data.height, 100)}%` }]}
+                />
+              </View>
+            ))
+          ) : (
+            <>
+              <View style={[styles.barWrapper, { height: 60 }]}>
+                <View style={[styles.barPlaceholder, { height: "60%" }]} />
+              </View>
+              <View style={[styles.barWrapper, { height: 60 }]}>
+                <View style={[styles.barPlaceholder, { height: "48%" }]} />
+              </View>
+              <View style={[styles.barWrapper, { height: 60 }]}>
+                <View style={[styles.barPlaceholder, { height: "75%" }]} />
+              </View>
+              <View style={[styles.barWrapper, { height: 60 }]}>
+                <View style={[styles.barPlaceholder, { height: "42%" }]} />
+              </View>
+              <View style={[styles.barWrapper, { height: 60 }]}>
+                <View style={[styles.barPlaceholder, { height: "65%" }]} />
+              </View>
+            </>
+          )}
+        </View>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  const renderUsersScreen = () => {
+    const displayed =
+      userType === "students" 
+        ? displayedStudents 
+        : userType === "faculty"
+          ? displayedFaculty
+          : userType === "staff"
+            ? displayedStaff
+            : displayedGuards;
+    
+    return (
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.screenTitle}>Directory</Text>
+
+        <View style={styles.searchBox}>
+          <Ionicons
+            name="search"
+            size={18}
+            color="#9ca3af"
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search name or ID..."
+            placeholderTextColor="#d1d5db"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Ionicons name="close-circle" size={18} color="#9ca3af" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, userType === "students" && styles.tabActive]}
+            onPress={() => setUserType("students")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                userType === "students" && styles.tabTextActive,
+              ]}
+            >
+              {`Students (${students.length})`}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, userType === "faculty" && styles.tabActive]}
+            onPress={() => setUserType("faculty")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                userType === "faculty" && styles.tabTextActive,
+              ]}
+            >
+              {`Faculty (${faculty.length})`}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, userType === "staff" && styles.tabActive]}
+            onPress={() => setUserType("staff")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                userType === "staff" && styles.tabTextActive,
+              ]}
+            >
+              {`Staff (${staff.length})`}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, userType === "guards" && styles.tabActive]}
+            onPress={() => setUserType("guards")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                userType === "guards" && styles.tabTextActive,
+              ]}
+            >
+              {`Guards (${guards.length})`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Merge Sort controls ── */}
+        <View style={styles.sortRow}>
+          <Text style={styles.sortLabel}>Sort:</Text>
+          {[
+            { key: "firstName", label: "Name" },
+            { key: "isActive", label: "Status" },
+            { key: "createdAt", label: "Date" },
+          ].map(({ key, label }) => (
+            <TouchableOpacity
+              key={key}
+              style={[styles.sortBtn, sortKey === key && styles.sortBtnActive]}
+              onPress={() => toggleSort(key)}
+            >
+              <Text
+                style={[
+                  styles.sortBtnText,
+                  sortKey === key && styles.sortBtnTextActive,
+                ]}
+              >
+                {`${label}${sortKey === key ? (sortOrder === "asc" ? " ↑" : " ↓") : ""}`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* ── Algorithm badge ── */}
+        {searchQuery.length > 0 && (
+          <View style={styles.algorithmBadge}>
+            <Ionicons name="flash" size={12} color="#1f8e4d" />
+            <Text style={styles.algorithmBadgeText}>
+              {`${displayed.length} result${displayed.length !== 1 ? "s" : ""} · Trie + Levenshtein · Merge Sort`}
+            </Text>
+          </View>
+        )}
+
+        {loadingUsers ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading users...</Text>
+          </View>
+        ) : (
+          <View style={styles.usersList}>
+            {displayed.map((user) => (
+              <TouchableOpacity key={user.id} style={styles.userCard}>
+                <View style={styles.userInfo}>
+                  <View style={styles.userAvatar}>
+                    <Ionicons
+                      name={
+                        userType === "students"
+                          ? "person"
+                          : userType === "faculty"
+                            ? "school"
+                            : userType === "staff"
+                              ? "briefcase"
+                              : "shield"
+                      }
+                      size={24}
+                      color="#6b7280"
+                    />
+                  </View>
+                  <View style={styles.userDetails}>
+                    <Text
+                      style={styles.userName}
+                    >{`${user.firstName} ${user.lastName}`}</Text>
+                    <Text style={styles.userID}>
+                      {userType === "students"
+                        ? user.studentId
+                        : user.employeeId}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.userStatus,
+                        { color: user.isActive ? "#10b981" : "#ef4444" },
+                      ]}
+                    >
+                      {user.isActive ? "● ACTIVE" : "● PENDING"}
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+              </TouchableOpacity>
+            ))}
+            {displayed.length === 0 && (
+              <View style={styles.emptyContainer}>
+                <Ionicons
+                  name={
+                    searchQuery
+                      ? "search-outline"
+                      : userType === "students"
+                        ? "people-outline"
+                        : userType === "faculty"
+                          ? "school-outline"
+                          : userType === "staff"
+                            ? "briefcase-outline"
+                            : "shield-outline"
+                  }
+                  size={48}
+                  color="#d1d5db"
+                />
+                <Text style={styles.emptyText}>
+                  {searchQuery
+                    ? `No matches for "${searchQuery}"`
+                    : "No users found"}
+                </Text>
+                {searchQuery.length > 0 && (
+                  <Text style={styles.emptySubText}>
+                    Fuzzy search checked — no close matches
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setCurrentScreen("new-account")}
+        >
+          <Ionicons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  };
+
+  // ── Date & Time Picker Handlers ────────────────────────────────────────
+  const formatDateDisplay = (date: Date, showTime: boolean = true): string => {
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = monthNames[date.getMonth()];
+    const day = date.getDate();
+    const hour = String(date.getHours()).padStart(2, "0");
+    const minute = String(date.getMinutes()).padStart(2, "0");
+    
+    if (showTime) {
+      return `${month} ${day}, ${hour}:${minute}`;
+    }
+    return `${month} ${day}`;
+  };
+
+  const handleDateFromConfirm = (date: Date) => {
+    setDateFromDate(date);
+    setDateFromInput(formatDateDisplay(date, true));
+    setShowDateFromPicker(false);
+  };
+
+  const handleTimeFromConfirm = (time: Date) => {
+    const updatedDate = new Date(dateFromDate);
+    updatedDate.setHours(time.getHours());
+    updatedDate.setMinutes(time.getMinutes());
+    setDateFromDate(updatedDate);
+    setDateFromInput(formatDateDisplay(updatedDate, true));
+    setShowTimeFromPicker(false);
+  };
+
+  const handleDateToConfirm = (date: Date) => {
+    setDateToDate(date);
+    setDateToInput(formatDateDisplay(date, true));
+    setShowDateToPicker(false);
+  };
+
+  const handleTimeToConfirm = (time: Date) => {
+    const updatedDate = new Date(dateToDate);
+    updatedDate.setHours(time.getHours());
+    updatedDate.setMinutes(time.getMinutes());
+    setDateToDate(updatedDate);
+    setDateToInput(formatDateDisplay(updatedDate, true));
+    setShowTimeToPicker(false);
+  };
+  // ─────────────────────────────────────────────────────────────────────
+
+  const renderAuditLogsScreen = () => {
+    // ── ALGORITHM: filterAndSortAuditLogs ──────────────────────────────────
+    // Combines:
+    //  1. Search filter (plate, name, role)
+    //  2. Hash Set deduplication (O(1) lookups)
+    //  3. Merge Sort (stable O(n log n) sort)
+    // ───────────────────────────────────────────────────────────────────────
+    const displayedLogs = filterAndSortAuditLogs(
+      auditLogs,
+      searchQuery,
+      "timestamp",
+      "desc", // Most recent first
+    );
+
+    return (
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.screenTitle}>Master Audit Logs</Text>
+        <Text style={styles.screenSubtitle}>Campus-wide vehicle activity</Text>
+
+        <View style={styles.dateRangeContainer}>
+          <Text style={styles.dateLabel}>DATE & TIME RANGE QUERY</Text>
+          
+          <View style={styles.datePickersRow}>
+            {/* From Date & Time Picker */}
+            <View style={styles.datePickerGroup}>
+              <Text style={styles.datePickerLabel}>From</Text>
+              <TouchableOpacity
+                style={styles.datePickerButton}
+                onPress={() => setShowDateFromPicker(true)}
+              >
+                <Ionicons name="calendar" size={16} color="#1f8e4d" />
+                <Text style={styles.datePickerButtonText}>{formatDateDisplay(dateFromDate, false)}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.timePickerButton}
+                onPress={() => setShowTimeFromPicker(true)}
+              >
+                <Ionicons name="time" size={16} color="#1f8e4d" />
+                <Text style={styles.timePickerButtonText}>
+                  {String(dateFromDate.getHours()).padStart(2, "0")}:{String(dateFromDate.getMinutes()).padStart(2, "0")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.dateSeparator}>→</Text>
+
+            {/* To Date & Time Picker */}
+            <View style={styles.datePickerGroup}>
+              <Text style={styles.datePickerLabel}>To</Text>
+              <TouchableOpacity
+                style={styles.datePickerButton}
+                onPress={() => setShowDateToPicker(true)}
+              >
+                <Ionicons name="calendar" size={16} color="#1f8e4d" />
+                <Text style={styles.datePickerButtonText}>{formatDateDisplay(dateToDate, false)}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.timePickerButton}
+                onPress={() => setShowTimeToPicker(true)}
+              >
+                <Ionicons name="time" size={16} color="#1f8e4d" />
+                <Text style={styles.timePickerButtonText}>
+                  {String(dateToDate.getHours()).padStart(2, "0")}:{String(dateToDate.getMinutes()).padStart(2, "0")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.applyDateButton}
+            onPress={() => fetchAnalyticsData()}
+          >
+            <Ionicons name="checkmark-circle" size={18} color="#fff" />
+            <Text style={styles.applyDateButtonText}>Apply Filter</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Date & Time Pickers - Hidden DateTimePickerModal components */}
+        <DateTimePickerModal
+          isVisible={showDateFromPicker}
+          mode="date"
+          onConfirm={handleDateFromConfirm}
+          onCancel={() => setShowDateFromPicker(false)}
+          maximumDate={dateToDate}
+          display="spinner"
+        />
+        <DateTimePickerModal
+          isVisible={showTimeFromPicker}
+          mode="time"
+          onConfirm={handleTimeFromConfirm}
+          onCancel={() => setShowTimeFromPicker(false)}
+          display="spinner"
+          is24Hour={true}
+        />
+        <DateTimePickerModal
+          isVisible={showDateToPicker}
+          mode="date"
+          onConfirm={handleDateToConfirm}
+          onCancel={() => setShowDateToPicker(false)}
+          minimumDate={dateFromDate}
+          display="spinner"
+        />
+        <DateTimePickerModal
+          isVisible={showTimeToPicker}
+          mode="time"
+          onConfirm={handleTimeToConfirm}
+          onCancel={() => setShowTimeToPicker(false)}
+          display="spinner"
+          is24Hour={true}
+        />
+
+        <View style={styles.searchBox}>
+          <Ionicons
+            name="search"
+            size={18}
+            color="#9ca3af"
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by plate, name, or role..."
+            placeholderTextColor="#d1d5db"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+
+        {errorMessage && (
+          <View style={styles.errorAlert}>
+            <Ionicons name="alert-circle" size={18} color="#ef4444" />
+            <Text style={styles.errorAlertText}>{errorMessage}</Text>
+          </View>
+        )}
+
+        <View style={styles.auditLogsList}>
+          {loadingAnalytics ? (
+            <View style={styles.loadingContainer}>
+              <LoaderComponent
+                visible={true}
+                message="Loading audit logs..."
+              />
+            </View>
+          ) : displayedLogs.length > 0 ? (
+            <>
+              <Text style={styles.logsCountText}>
+                Total entries: {displayedLogs.length}
+              </Text>
+              {displayedLogs.map((log) => (
+                <View key={log.id} style={styles.auditLogCard}>
+                  <View style={styles.auditLogIcon}>
+                    <Ionicons
+                      name={
+                        log.type === "time_in" || log.type === "IN"
+                          ? "arrow-down-outline"
+                          : "arrow-up-outline"
+                      }
+                      size={20}
+                      color={
+                        log.type === "time_in" || log.type === "IN"
+                          ? "#10b981"
+                          : "#ef4444"
+                      }
+                    />
+                  </View>
+                  <View style={styles.auditLogContent}>
+                    <View style={styles.auditLogHeader}>
+                      <Text style={styles.auditLogPlate}>{log.plate}</Text>
+                      <View
+                        style={[
+                          styles.auditLogStatusBadge,
+                          {
+                            backgroundColor:
+                              log.type === "time_in" ? "#dbeafe" : "#fecaca",
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.auditLogStatusText,
+                            {
+                              color:
+                                log.type === "time_in" ? "#0369a1" : "#991b1b",
+                            },
+                          ]}
+                        >
+                          {log.type === "time_in" ? "CHECK IN" : "CHECK OUT"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.auditLogName}>{log.name}</Text>
+                    <View style={styles.auditLogMetaRow}>
+                      <Text style={styles.auditLogRole}>
+                        {log.role.charAt(0).toUpperCase() + log.role.slice(1)}
+                      </Text>
+                      <Text style={styles.auditLogVehicle}>
+                        • {log.vehicleType || "vehicle"}
+                      </Text>
+                    </View>
+                    <Text style={styles.auditLogTime}>{log.time}</Text>
+                  </View>
+                </View>
+              ))}
+            </>
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="document" size={48} color="#d1d5db" />
+              <Text style={styles.emptyText}>No logs found</Text>
+              <Text style={styles.emptySubText}>
+                {searchQuery
+                  ? "No matching logs for your search"
+                  : "No vehicle activity recorded for this period"}
+              </Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    );
+  };
+
+  const renderNewAccountScreen = () => (
+    <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.backButton}>
+        <TouchableOpacity onPress={() => setCurrentScreen("users")}>
+          <Ionicons name="chevron-back" size={24} color="#1d2934" />
+        </TouchableOpacity>
+        <Text style={styles.newAccountTitle}>New Account</Text>
+      </View>
+
+      {/* Messages */}
+      {!!errorMessage && (
+        <View style={styles.errorAlert}>
+          <Ionicons name="alert-circle" size={18} color="#ef4444" />
+          <Text style={styles.errorAlertText}>{errorMessage}</Text>
+        </View>
+      )}
+
+      {!!successMessage && (
+        <View style={styles.successAlert}>
+          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+          <Text style={styles.successAlertText}>{successMessage}</Text>
+        </View>
+      )}
+
+      <Text style={styles.roleSetupLabel}>ROLE SETUP</Text>
+      <View style={styles.roleButtonsContainer}>
+        <TouchableOpacity
+          style={[
+            styles.roleButton,
+            newAccountRole === "student" && styles.roleButtonActive,
+          ]}
+          onPress={() => setNewAccountRole("student")}
+          disabled={creatingAccount}
+        >
+          <Ionicons
+            name="person"
+            size={20}
+            color={newAccountRole === "student" ? "#fff" : "#6b7280"}
+          />
+          <Text
+            style={[
+              styles.roleButtonText,
+              newAccountRole === "student" && styles.roleButtonTextActive,
+            ]}
+          >
+            Student
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.roleButton,
+            newAccountRole === "faculty" && styles.roleButtonActive,
+          ]}
+          onPress={() => setNewAccountRole("faculty")}
+          disabled={creatingAccount}
+        >
+          <Ionicons
+            name="school"
+            size={20}
+            color={newAccountRole === "faculty" ? "#fff" : "#6b7280"}
+          />
+          <Text
+            style={[
+              styles.roleButtonText,
+              newAccountRole === "faculty" && styles.roleButtonTextActive,
+            ]}
+          >
+            Faculty
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.roleButton,
+            newAccountRole === "staff" && styles.roleButtonActive,
+          ]}
+          onPress={() => setNewAccountRole("staff")}
+          disabled={creatingAccount}
+        >
+          <Ionicons
+            name="briefcase"
+            size={20}
+            color={newAccountRole === "staff" ? "#fff" : "#6b7280"}
+          />
+          <Text
+            style={[
+              styles.roleButtonText,
+              newAccountRole === "staff" && styles.roleButtonTextActive,
+            ]}
+          >
+            Staff
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.roleButton,
+            newAccountRole === "guard" && styles.roleButtonActive,
+          ]}
+          onPress={() => setNewAccountRole("guard")}
+          disabled={creatingAccount}
+        >
+          <Ionicons
+            name="shield"
+            size={20}
+            color={newAccountRole === "guard" ? "#fff" : "#6b7280"}
+          />
+          <Text
+            style={[
+              styles.roleButtonText,
+              newAccountRole === "guard" && styles.roleButtonTextActive,
+            ]}
+          >
+            Guard
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.personalDetailsLabel}>PERSONAL DETAILS</Text>
+
+      <Text style={styles.fieldLabel}>First Name *</Text>
+      <TextInput
+        style={styles.textInput}
+        placeholder="Juan"
+        placeholderTextColor="#d1d5db"
+        editable={!creatingAccount}
+        value={newAccountData.firstName}
+        onChangeText={(value) => handleNewAccountChange("firstName", value)}
+      />
+
+      <Text style={styles.fieldLabel}>Last Name *</Text>
+      <TextInput
+        style={styles.textInput}
+        placeholder="Dela Cruz"
+        placeholderTextColor="#d1d5db"
+        editable={!creatingAccount}
+        value={newAccountData.lastName}
+        onChangeText={(value) => handleNewAccountChange("lastName", value)}
+      />
+
+      <Text style={styles.fieldLabel}>
+        {"Suffix "}
+        <Text style={styles.fieldLabelOptional}>{"(Optional)"}</Text>
+      </Text>
+      <TextInput
+        style={styles.textInput}
+        placeholder="Jr., Sr., II, III, IV"
+        placeholderTextColor="#d1d5db"
+        editable={!creatingAccount}
+        value={newAccountData.suffix}
+        onChangeText={(value) => handleNewAccountChange("suffix", value)}
+      />
+
+      <Text style={styles.fieldLabel}>
+        {"Middle Name "}
+        <Text style={styles.fieldLabelOptional}>{"(Optional)"}</Text>
+      </Text>
+      <TextInput
+        style={styles.textInput}
+        placeholder="e.g. Santos"
+        placeholderTextColor="#d1d5db"
+        editable={!creatingAccount}
+        value={newAccountData.middleName}
+        onChangeText={(value) => handleNewAccountChange("middleName", value)}
+      />
+
+      <Text style={styles.fieldLabel}>Email * (@gmail.com)</Text>
+      <TextInput
+        style={styles.textInput}
+        placeholder="name@gmail.com"
+        placeholderTextColor="#d1d5db"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        editable={!creatingAccount}
+        value={newAccountData.email}
+        onChangeText={(value) => handleNewAccountChange("email", value)}
+      />
+
+      {newAccountRole === "student" ? (
+        <>
+          <Text style={styles.fieldLabel}>{"Student ID * (XX-XXXX)"}</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="23-1832"
+            placeholderTextColor="#d1d5db"
+            keyboardType="numeric"
+            maxLength={7}
+            editable={!creatingAccount}
+            value={newAccountData.studentId}
+            onChangeText={(value) => handleNewAccountChange("studentId", value)}
+          />
+
+          <Text style={styles.fieldLabel}>{"Vehicle Type"}</Text>
+          <View style={styles.vehicleTypeRow}>
+            {(["Car", "Motorcycle", "Ebike", "Others"] as const).map((type) => {
+              const isOthers = type === "Others";
+              const isActive = isOthers
+                ? !["Car", "Motorcycle", "Ebike"].includes(
+                    newAccountData.vehicleType,
+                  )
+                : newAccountData.vehicleType === type;
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.vehicleTypeBtn,
+                    isActive && styles.vehicleTypeBtnActive,
+                  ]}
+                  onPress={() => {
+                    if (!creatingAccount) {
+                      handleNewAccountChange(
+                        "vehicleType",
+                        isOthers ? "Others" : type,
+                      );
+                    }
+                  }}
+                  disabled={creatingAccount}
+                >
+                  <Ionicons
+                    name={
+                      type === "Car"
+                        ? "car-outline"
+                        : type === "Motorcycle"
+                          ? "bicycle-outline"
+                          : type === "Ebike"
+                            ? "flash-outline"
+                            : "pencil-outline"
+                    }
+                    size={14}
+                    color={isActive ? "#fff" : "#6b7280"}
+                  />
+                  <Text
+                    style={[
+                      styles.vehicleTypeBtnText,
+                      isActive && styles.vehicleTypeBtnTextActive,
+                    ]}
+                  >
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {!["Car", "Motorcycle", "Ebike"].includes(
+            newAccountData.vehicleType,
+          ) && (
+            <TextInput
+              style={[styles.textInput, { marginTop: -8 }]}
+              placeholder="Specify vehicle type..."
+              placeholderTextColor="#d1d5db"
+              editable={!creatingAccount}
+              value={
+                newAccountData.vehicleType === "Others"
+                  ? ""
+                  : newAccountData.vehicleType
+              }
+              onChangeText={(value) =>
+                handleNewAccountChange("vehicleType", value || "Others")
+              }
+            />
+          )}
+
+          <Text style={styles.fieldLabel}>{"Vehicle Plate Number"}</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="ABC-123"
+            placeholderTextColor="#d1d5db"
+            autoCapitalize="characters"
+            editable={!creatingAccount}
+            value={newAccountData.vehiclePlate}
+            onChangeText={(value) =>
+              handleNewAccountChange("vehiclePlate", value)
+            }
+          />
+        </>
+      ) : newAccountRole === "faculty" || newAccountRole === "staff" ? (
+        <>
+          <Text style={styles.fieldLabel}>{"Employee ID *"}</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder={newAccountRole === "faculty" ? "FAC-001" : "STAFF-001"}
+            placeholderTextColor="#d1d5db"
+            editable={!creatingAccount}
+            value={newAccountData.employeeId}
+            onChangeText={(value) =>
+              handleNewAccountChange("employeeId", value)
+            }
+          />
+
+          <Text style={styles.fieldLabel}>{"Vehicle Type"}</Text>
+          <View style={styles.vehicleTypeRow}>
+            {(["Car", "Motorcycle", "Ebike", "Others"] as const).map((type) => {
+              const isOthers = type === "Others";
+              const isActive = isOthers
+                ? !["Car", "Motorcycle", "Ebike"].includes(
+                    newAccountData.vehicleType,
+                  )
+                : newAccountData.vehicleType === type;
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.vehicleTypeBtn,
+                    isActive && styles.vehicleTypeBtnActive,
+                  ]}
+                  onPress={() => {
+                    if (!creatingAccount) {
+                      handleNewAccountChange(
+                        "vehicleType",
+                        isOthers ? "Others" : type,
+                      );
+                    }
+                  }}
+                  disabled={creatingAccount}
+                >
+                  <Ionicons
+                    name={
+                      type === "Car"
+                        ? "car-outline"
+                        : type === "Motorcycle"
+                          ? "bicycle-outline"
+                          : type === "Ebike"
+                            ? "flash-outline"
+                            : "pencil-outline"
+                    }
+                    size={14}
+                    color={isActive ? "#fff" : "#6b7280"}
+                  />
+                  <Text
+                    style={[
+                      styles.vehicleTypeBtnText,
+                      isActive && styles.vehicleTypeBtnTextActive,
+                    ]}
+                  >
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {!["Car", "Motorcycle", "Ebike"].includes(
+            newAccountData.vehicleType,
+          ) && (
+            <TextInput
+              style={[styles.textInput, { marginTop: -8 }]}
+              placeholder="Specify vehicle type..."
+              placeholderTextColor="#d1d5db"
+              editable={!creatingAccount}
+              value={
+                newAccountData.vehicleType === "Others"
+                  ? ""
+                  : newAccountData.vehicleType
+              }
+              onChangeText={(value) =>
+                handleNewAccountChange("vehicleType", value || "Others")
+              }
+            />
+          )}
+
+          <Text style={styles.fieldLabel}>{"Vehicle Plate Number"}</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="ABC-123"
+            placeholderTextColor="#d1d5db"
+            autoCapitalize="characters"
+            editable={!creatingAccount}
+            value={newAccountData.vehiclePlate}
+            onChangeText={(value) =>
+              handleNewAccountChange("vehiclePlate", value)
+            }
+          />
+        </>
+      ) : (
+        <>
+          <Text style={styles.fieldLabel}>{"Employee ID *"}</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="GRD-001"
+            placeholderTextColor="#d1d5db"
+            editable={!creatingAccount}
+            value={newAccountData.employeeId}
+            onChangeText={(value) =>
+              handleNewAccountChange("employeeId", value)
+            }
+          />
+        </>
+      )}
+
+      <View style={styles.infoBox}>
+        <Ionicons name="information-circle" size={18} color="#1f8e4d" />
+        <Text style={styles.infoText}>
+          An email verification link will be sent. User must verify their email
+          and reset their password before the account becomes active.
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={[
+          styles.createButton,
+          creatingAccount && styles.createButtonDisabled,
+        ]}
+        onPress={handleCreateAccount}
+        disabled={creatingAccount}
+      >
+        {creatingAccount ? (
+          <>
+            <Text style={styles.createButtonText}>Creating...</Text>
+          </>
+        ) : (
+          <Text style={styles.createButtonText}>Create Account</Text>
+        )}
+      </TouchableOpacity>
+    </ScrollView>
+  );
+
+  const renderChartModal = () => {
+    const maxCount = parkingHoursData.length > 0
+      ? Math.max(...parkingHoursData.map(d => d.count), 1)
+      : 160;
+    
+    // Smart Y-axis scaling — use smaller increments for low data
+    let yAxisMax;
+    if (maxCount <= 10) {
+      yAxisMax = 10;
+    } else if (maxCount <= 50) {
+      yAxisMax = Math.ceil(maxCount / 10) * 10; // Round to nearest 10
+    } else {
+      yAxisMax = Math.ceil(maxCount / 40) * 40; // Round to nearest 40
+    }
+
+    return (
+      <Modal
+        visible={showChartModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowChartModal(false)}
+      >
+        <SafeAreaView style={styles.modalSafeArea}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowChartModal(false)}>
+              <Ionicons name="close" size={28} color="#1d2934" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Peak Parking Hours</Text>
+            <View style={{ width: 28 }} />
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            <Text style={styles.modalSubtitle}>Vehicle volume over time today</Text>
+
+            <View style={styles.expandedChartContainer}>
+              <View style={styles.yAxisLabels}>
+                {[yAxisMax, (yAxisMax * 3) / 4, (yAxisMax / 2), (yAxisMax / 4), 0].map(
+                  (val, idx) => (
+                    <Text key={idx} style={styles.yAxisLabel}>
+                      {Math.round(val)}
+                    </Text>
+                  ),
+                )}
+              </View>
+
+              <View style={styles.chartContent}>
+                <View style={styles.expandedChartBars}>
+                  {parkingHoursData.length > 0 ? (
+                    parkingHoursData.map((data, index) => (
+                      <View key={index} style={styles.expandedBarWrapper}>
+                        <View
+                          style={[
+                            styles.expandedBar,
+                            { height: `${Math.min(data.height, 100)}%` },
+                          ]}
+                        />
+                        <Text style={styles.barCountLabel}>{data.count}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <>
+                      <View style={styles.expandedBarWrapper}>
+                        <View style={[styles.expandedBar, { height: "59%" }]} />
+                      </View>
+                      <View style={styles.expandedBarWrapper}>
+                        <View style={[styles.expandedBar, { height: "46%" }]} />
+                      </View>
+                      <View style={styles.expandedBarWrapper}>
+                        <View style={[styles.expandedBar, { height: "62%" }]} />
+                      </View>
+                      <View style={styles.expandedBarWrapper}>
+                        <View style={[styles.expandedBar, { height: "40%" }]} />
+                      </View>
+                      <View style={styles.expandedBarWrapper}>
+                        <View style={[styles.expandedBar, { height: "51%" }]} />
+                      </View>
+                      <View style={styles.expandedBarWrapper}>
+                        <View style={[styles.expandedBar, { height: "75%" }]} />
+                      </View>
+                      <View style={styles.expandedBarWrapper}>
+                        <View style={[styles.expandedBar, { height: "50%" }]} />
+                      </View>
+                    </>
+                  )}
+                </View>
+                <View style={styles.xAxisLabels}>
+                  {parkingHoursData.length > 0 ? (
+                    parkingHoursData.map((data, idx) => (
+                      <Text key={idx} style={styles.xAxisLabel}>
+                        {data.hour}
+                      </Text>
+                    ))
+                  ) : (
+                    <>
+                      <Text style={styles.xAxisLabel}>6 AM</Text>
+                      <Text style={styles.xAxisLabel}>8 AM</Text>
+                      <Text style={styles.xAxisLabel}>10 AM</Text>
+                      <Text style={styles.xAxisLabel}>12 PM</Text>
+                      <Text style={styles.xAxisLabel}>2 PM</Text>
+                      <Text style={styles.xAxisLabel}>4 PM</Text>
+                      <Text style={styles.xAxisLabel}>6 PM</Text>
+                    </>
+                  )}
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+    );
   };
 
   const renderOverviewScreen = () => (
@@ -1249,35 +2424,49 @@ const styles = StyleSheet.create({
   },
   chartCard: {
     backgroundColor: "#fff",
-    borderRadius: 28,
-    padding: 22,
+    borderRadius: 16,
+    padding: 18,
     shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowRadius: 18,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 2,
     marginBottom: 20,
   },
   chartTitle: {
     color: "#1d2934",
     fontWeight: "700",
     marginBottom: 6,
-    fontSize: 16,
+    fontSize: 15,
   },
   chartSubtitle: {
     color: "#9ca3af",
     fontSize: 12,
-    marginBottom: 18,
+    marginBottom: 14,
   },
   chartBars: {
     flexDirection: "row",
     alignItems: "flex-end",
-    justifyContent: "space-between",
-    height: 120,
+    justifyContent: "space-evenly",
+    height: 80,
+    gap: 4,
+  },
+  barWrapper: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    height: "100%",
   },
   bar: {
-    width: 28,
-    borderRadius: 14,
+    width: "80%",
+    borderRadius: 6,
     backgroundColor: "#1f8e4d",
+    minHeight: 8,
+  },
+  barPlaceholder: {
+    width: "100%",
+    borderRadius: 6,
+    backgroundColor: "#d1d5db",
+    opacity: 0.5,
   },
   // Users Directory Styles
   searchBox: {
@@ -1476,6 +2665,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    marginBottom: 12,
   },
   dateInput: {
     flex: 1,
@@ -1483,6 +2673,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     justifyContent: "center",
+  },
+  dateInputField: {
+    flex: 1,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 13,
+    color: "#1d2934",
+    fontWeight: "600",
   },
   dateInputLabel: {
     fontSize: 13,
@@ -1493,6 +2692,72 @@ const styles = StyleSheet.create({
     color: "#d1d5db",
     fontSize: 18,
     fontWeight: "300",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  datePickersRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 12,
+    marginBottom: 16,
+  },
+  datePickerGroup: {
+    flex: 1,
+    gap: 8,
+  },
+  datePickerLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#6f7f93",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginBottom: 4,
+  },
+  datePickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: "#e5e7eb",
+  },
+  datePickerButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1d2934",
+  },
+  timePickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0fdf4",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: "#bbf7d0",
+  },
+  timePickerButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#1f8e4d",
+  },
+  applyDateButton: {
+    flexDirection: "row",
+    backgroundColor: "#1f8e4d",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  applyDateButtonText: {
+    fontSize: 13,
+    color: "#fff",
+    fontWeight: "600",
   },
   auditLogsList: {
     marginBottom: 20,
@@ -1541,6 +2806,46 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#9ca3af",
     fontWeight: "500",
+  },
+  dateHelperText: {
+    fontSize: 10,
+    color: "#9ca3af",
+    marginBottom: 8,
+    fontStyle: "italic",
+  },
+  logsCountText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#6f7f93",
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  auditLogHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  auditLogStatusBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  auditLogStatusText: {
+    fontSize: 9,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  auditLogMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  auditLogVehicle: {
+    fontSize: 11,
+    color: "#6f7f93",
+    marginLeft: 0,
   },
   // New Account Styles
   backButton: {
@@ -1720,6 +3025,183 @@ const styles = StyleSheet.create({
   logoutText: {
     color: "#fff",
     fontWeight: "800",
+  },
+  // Modal Styles
+  modalSafeArea: {
+    flex: 1,
+    backgroundColor: "#f9fafb",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    backgroundColor: "#fff",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1d2934",
+  },
+  modalContent: {
+    padding: 18,
+    paddingBottom: 40,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: "#6f7f93",
+    marginBottom: 20,
+    fontWeight: "500",
+  },
+  expandedChartContainer: {
+    flexDirection: "row",
+    height: 470,
+    marginBottom: 20,
+  },
+  yAxisLabels: {
+    justifyContent: "space-between",
+    width: 45,
+    paddingRight: 14,
+    alignItems: "flex-end",
+    paddingVertical: 8,
+  },
+  yAxisLabel: {
+    fontSize: 12,
+    color: "#9ca3af",
+    fontWeight: "600",
+  },
+  chartContent: {
+    flex: 1,
+  },
+  expandedChartBars: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-around",
+    height: 450,
+    backgroundColor: "#f9fafb",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  expandedBarWrapper: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    height: "100%",
+  },
+  expandedBar: {
+    width: "100%",
+    borderRadius: 8,
+    backgroundColor: "#1f8e4d",
+    minHeight: 12,
+    maxWidth: 50,
+  },
+  barCountLabel: {
+    fontSize: 11,
+    color: "#1d2934",
+    fontWeight: "700",
+    marginTop: 8,
+  },
+  xAxisLabels: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingTop: 14,
+    paddingHorizontal: 12,
+  },
+  xAxisLabel: {
+    fontSize: 12,
+    color: "#9ca3af",
+    fontWeight: "600",
+    textAlign: "center",
+    flex: 1,
+  },
+  // New alert and info styles
+  errorAlert: {
+    backgroundColor: "#fee2e2",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    borderLeftWidth: 4,
+    borderLeftColor: "#ef4444",
+  },
+  errorAlertText: {
+    color: "#991b1b",
+    fontSize: 13,
+    fontWeight: "600",
+    marginLeft: 12,
+    flex: 1,
+  },
+  successAlert: {
+    backgroundColor: "#dcfce7",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    borderLeftWidth: 4,
+    borderLeftColor: "#10b981",
+  },
+  successAlertText: {
+    color: "#166534",
+    fontSize: 13,
+    fontWeight: "600",
+    marginLeft: 12,
+    flex: 1,
+  },
+  infoBox: {
+    backgroundColor: "#ecfdf5",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: "#1f8e4d",
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  infoText: {
+    color: "#065f46",
+    fontSize: 12,
+    fontWeight: "500",
+    marginLeft: 12,
+    flex: 1,
+    lineHeight: 18,
+  },
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#9ca3af",
+    marginTop: 12,
+  },
+  emptyState: {
+    paddingVertical: 60,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyContainer: {
+    paddingVertical: 60,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#9ca3af",
+    marginTop: 12,
+  },
+  createButtonDisabled: {
+    opacity: 0.6,
   },
   // Modal Styles
   modalSafeArea: {
