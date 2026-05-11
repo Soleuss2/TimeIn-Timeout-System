@@ -8,7 +8,6 @@ import {
 } from "firebase/auth";
 import {
   collection,
-  addDoc,
   query,
   where,
   getDoc,
@@ -17,8 +16,9 @@ import {
   updateDoc,
   setDoc,
   Timestamp,
+  orderBy,
 } from "firebase/firestore";
-import { initializeApp, deleteApp, getApps } from "firebase/app";
+import { initializeApp, deleteApp } from "firebase/app";
 import { authRef, db } from "./firebaseConfig";
 import { SecurityService } from "./securityService";
 
@@ -28,7 +28,7 @@ export interface CreateAccountPayload {
   suffix?: string;
   middleName?: string;
   email: string;
-  role: "student" | "guard";
+  role: "student" | "faculty" | "staff" | "guard";
   studentId?: string;
   employeeId?: string;
   vehiclePlate?: string;
@@ -49,11 +49,31 @@ export interface DirectoryUser {
   lastName: string;
   email: string;
   isActive: boolean;
-  role: "student" | "guard";
+  role: "student" | "faculty" | "staff" | "guard";
   studentId?: string;
   employeeId?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AuditLog {
+  id: string;
+  plate: string;
+  type: "time_in" | "time_out";
+  name: string;
+  role: "student" | "guard" | "visitor";
+  time: string;
+  timestamp: Date;
+  guardRef?: string;
+  studentRef?: string;
+  vehicleType?: string;
+  status?: string;
+}
+
+export interface ParkingHourData {
+  hour: string;
+  count: number;
+  height: number;
 }
 
 // Helper to generate secure temporary password
@@ -121,6 +141,20 @@ const createUserWithSecondaryApp = async (
   } finally {
     // Always clean up the secondary app
     await deleteApp(secondaryApp);
+  }
+};
+
+/**
+ * Extract user ID from Firestore document reference string
+ * Converts "/guards/ABC123" or "/students/XYZ789" to "ABC123" or "XYZ789"
+ */
+const extractRefId = (ref: string | undefined): string | null => {
+  if (!ref) return null;
+  try {
+    const parts = ref.replace(/^\//, "").split("/");
+    return parts.length >= 2 ? parts[1] : null;
+  } catch {
+    return null;
   }
 };
 
@@ -524,6 +558,184 @@ export const AdminService = {
   },
 
   /**
+   * Create a new faculty or staff account with email verification
+   */
+  createFacultyStaffAccount: async (
+    payload: CreateAccountPayload & { adminId: string },
+  ): Promise<AdminAccountResponse> => {
+    try {
+      // Verify admin privileges
+      const isAdmin = await AdminService.verifyAdminPrivileges(payload.adminId);
+      if (!isAdmin) {
+        return {
+          success: false,
+          message: "Unauthorized. Admin privileges required.",
+          error: "ADMIN_VERIFICATION_FAILED",
+        };
+      }
+
+      // Check rate limit
+      const withinLimit = await AdminService.checkAdminRateLimit(
+        payload.adminId,
+      );
+      if (!withinLimit) {
+        return {
+          success: false,
+          message: "Rate limit exceeded. Maximum 10 accounts per hour allowed.",
+          error: "RATE_LIMIT_EXCEEDED",
+        };
+      }
+
+      // Validate inputs
+      if (
+        !payload.firstName ||
+        !payload.lastName ||
+        !payload.email ||
+        !payload.employeeId
+      ) {
+        return {
+          success: false,
+          message: "Missing required fields",
+          error: "INVALID_INPUT",
+        };
+      }
+
+      // Validate email format
+      if (!SecurityService.validateEmail(payload.email)) {
+        return {
+          success: false,
+          message: "Invalid email format",
+          error: "INVALID_EMAIL",
+        };
+      }
+
+      // Check if email already exists in both faculty and staff collections
+      const existingUser = await getDocs(
+        query(
+          collection(db, payload.role === "faculty" ? "faculty" : "staff"),
+          where("email", "==", payload.email),
+        ),
+      );
+
+      if (!existingUser.empty) {
+        return {
+          success: false,
+          message: "Email already registered",
+          error: "EMAIL_EXISTS",
+        };
+      }
+
+      // Generate temporary password
+      const tempPassword = generateTemporaryPassword();
+
+      // Create Firebase Auth user using a SECONDARY app
+      let firebaseUser: FirebaseUser;
+      try {
+        firebaseUser = await createUserWithSecondaryApp(
+          payload.email,
+          tempPassword,
+        );
+      } catch (error: any) {
+        if (error.code === "auth/email-already-in-use") {
+          return {
+            success: false,
+            message: "Email already registered in system",
+            error: "EMAIL_IN_USE",
+          };
+        }
+        throw error;
+      }
+
+      // Create faculty/staff document in Firestore
+      const fullName = `${payload.firstName} ${payload.lastName}`.trim();
+      const accountData = {
+        uid: firebaseUser.uid,
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        name: fullName,
+        middleName: payload.middleName || "",
+        email: payload.email,
+        employeeId: payload.employeeId,
+        role: payload.role,
+        vehicleType: payload.vehicleType || "car",
+        plateNumber: payload.vehiclePlate || "",
+        suffix: payload.suffix || "",
+        isActive: false,
+        emailVerified: false,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        createdBy: payload.adminId,
+        accountStatus: "PENDING_EMAIL_VERIFICATION",
+      };
+
+      const collectionName = payload.role === "faculty" ? "faculty" : "staff";
+      await setDoc(doc(db, collectionName, firebaseUser.uid), accountData);
+
+      // Generate QR code data for guard scanning
+      const qrData = JSON.stringify({
+        type: `${payload.role}_qr`,
+        employeeId: payload.employeeId,
+        uid: firebaseUser.uid,
+        name: fullName,
+        email: payload.email,
+        plateNumber: payload.vehiclePlate || "",
+        vehicleType: payload.vehicleType || "car",
+      });
+
+      // Store QR code document
+      await setDoc(doc(db, "qr_codes", firebaseUser.uid), {
+        qrData,
+        [`${payload.role}Ref`]: `/${collectionName}/${firebaseUser.uid}`,
+        employeeId: payload.employeeId,
+        [`${payload.role}Name`]: fullName,
+        plateNumber: payload.vehiclePlate || "",
+        vehicleType: payload.vehicleType || "car",
+        isActive: false,
+        createdAt: Timestamp.now(),
+        createdBy: payload.adminId,
+      });
+
+      // Send password reset email
+      try {
+        await sendPasswordResetEmail(authRef, payload.email);
+      } catch (resetError) {
+        console.error("Error sending password reset email:", resetError);
+      }
+
+      // Log security event
+      await SecurityService.logSecurityEvent({
+        type: "ACCOUNT_CREATED",
+        email: payload.email,
+        role: payload.role,
+        adminId: payload.adminId,
+        employeeId: payload.employeeId,
+      });
+
+      const roleLabel = payload.role === "faculty" ? "Faculty" : "Staff";
+      return {
+        success: true,
+        message: `${roleLabel} account created. Verification & password reset emails sent.`,
+        userId: firebaseUser.uid,
+      };
+    } catch (error: any) {
+      console.error("Error creating faculty/staff account:", error);
+
+      await SecurityService.logSecurityEvent({
+        type: "ACCOUNT_CREATION_FAILED",
+        role: payload.role,
+        adminId: payload.adminId,
+        error: error.message,
+      });
+
+      return {
+        success: false,
+        message: `Failed to create ${payload.role} account`,
+        error: error.message,
+      };
+    }
+  },
+
+  /**
    * Fetch all students for directory
    */
   fetchStudents: async (searchQuery = ""): Promise<DirectoryUser[]> => {
@@ -562,6 +774,92 @@ export const AdminService = {
       return students;
     } catch (error) {
       console.error("Error fetching students:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Fetch all faculty for directory
+   */
+  fetchFaculty: async (searchQuery = ""): Promise<DirectoryUser[]> => {
+    try {
+      const facultyRef = collection(db, "faculty");
+      const snapshot = await getDocs(facultyRef);
+
+      let facultyList: DirectoryUser[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        facultyList.push({
+          id: doc.id,
+          firstName: data.firstName || "",
+          lastName: data.lastName || "",
+          email: data.email || "",
+          isActive: data.isActive || false,
+          role: "faculty",
+          employeeId: data.employeeId,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+        });
+      });
+
+      // Filter by search query
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        facultyList = facultyList.filter(
+          (f) =>
+            f.firstName.toLowerCase().includes(query) ||
+            f.lastName.toLowerCase().includes(query) ||
+            f.employeeId?.toLowerCase().includes(query) ||
+            f.email.toLowerCase().includes(query),
+        );
+      }
+
+      return facultyList;
+    } catch (error) {
+      console.error("Error fetching faculty:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Fetch all staff for directory
+   */
+  fetchStaff: async (searchQuery = ""): Promise<DirectoryUser[]> => {
+    try {
+      const staffRef = collection(db, "staff");
+      const snapshot = await getDocs(staffRef);
+
+      let staffList: DirectoryUser[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        staffList.push({
+          id: doc.id,
+          firstName: data.firstName || "",
+          lastName: data.lastName || "",
+          email: data.email || "",
+          isActive: data.isActive || false,
+          role: "staff",
+          employeeId: data.employeeId,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+        });
+      });
+
+      // Filter by search query
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        staffList = staffList.filter(
+          (s) =>
+            s.firstName.toLowerCase().includes(query) ||
+            s.lastName.toLowerCase().includes(query) ||
+            s.employeeId?.toLowerCase().includes(query) ||
+            s.email.toLowerCase().includes(query),
+        );
+      }
+
+      return staffList;
+    } catch (error) {
+      console.error("Error fetching staff:", error);
       return [];
     }
   },
@@ -655,6 +953,256 @@ export const AdminService = {
         message: "Failed to deactivate user account",
         error: error.message,
       };
+    }
+  },
+
+  /**
+   * Fetch audit logs from TimeLogs collection for a specific date range
+   * Properly handles Firestore references and date filtering
+   */
+  fetchAuditLogs: async (
+    dateFrom?: Date,
+    dateTo?: Date,
+    searchQuery?: string,
+  ): Promise<AuditLog[]> => {
+    try {
+      const timeLogsRef = collection(db, "TimeLogs");
+      
+      // Build date range queries if dates provided
+      let constraints: any[] = [];
+      
+      if (dateFrom) {
+        constraints.push(where("time_in", ">=", dateFrom));
+      }
+      
+      if (dateTo) {
+        // Add 1 day to include all events on the "to" date
+        const endDate = new Date(dateTo);
+        endDate.setDate(endDate.getDate() + 1);
+        constraints.push(where("time_in", "<", endDate));
+      }
+      
+      constraints.push(orderBy("time_in", "desc"));
+      
+      const q = query(timeLogsRef, ...constraints);
+      const logsSnapshot = await getDocs(q);
+      
+      const allEvents: AuditLog[] = [];
+      const userCache = new Map<string, { name: string; role: "student" | "guard" }>();
+
+      for (const logDoc of logsSnapshot.docs) {
+        const data = logDoc.data();
+        const plateNumber = data.plateNumber || "N/A";
+        const vehicleType = data.vehicleType || "car";
+        const status = data.status || "pending";
+        
+        // Validate required fields
+        if (!data.time_in) continue;
+
+        // Determine who made the entry (student or guard)
+        let name = "Unknown";
+        let role: "student" | "guard" | "visitor" = "visitor";
+        const userRefId = extractRefId(data.studentRef) || 
+                         extractRefId(data.guardRef);
+        const isStudent = !!data.studentRef;
+
+        // Try to get cached user data first
+        if (userRefId && userCache.has(userRefId)) {
+          const cached = userCache.get(userRefId)!;
+          name = cached.name;
+          role = cached.role;
+        } else if (userRefId) {
+          try {
+            const userCollection = isStudent ? "students" : "guards";
+            const userDoc = await getDoc(doc(db, userCollection, userRefId));
+            
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              role = isStudent ? "student" : "guard";
+              
+              // Handle different naming conventions
+              const firstName = userData.firstName || userData.FirstName || "";
+              const lastName = userData.lastName || userData.lastNameName || "";
+              name = `${firstName} ${lastName}`.trim() || "Unknown";
+              
+              // Cache the result
+              userCache.set(userRefId, { name, role });
+            }
+          } catch (e) {
+            console.error(`Error fetching ${isStudent ? "student" : "guard"} data:`, e);
+          }
+        }
+
+        // Create individual audit entries for IN and OUT if they exist
+        // Handle Time In
+        if (data.time_in) {
+          const timestamp = data.time_in.toDate
+            ? data.time_in.toDate()
+            : new Date(data.time_in);
+          
+          const timeString = timestamp.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          });
+          
+          const dateString = timestamp.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+
+          allEvents.push({
+            id: `${logDoc.id}_in`,
+            plate: plateNumber,
+            type: "time_in",
+            name,
+            role,
+            time: `${timeString} • ${dateString}`,
+            timestamp,
+            guardRef: data.guardRef,
+            studentRef: data.studentRef,
+            vehicleType,
+            status: "check_in",
+          });
+        }
+
+        // Handle Time Out
+        if (data.time_out) {
+          const timestamp = data.time_out.toDate
+            ? data.time_out.toDate()
+            : new Date(data.time_out);
+          
+          const timeString = timestamp.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          });
+          
+          const dateString = timestamp.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+
+          allEvents.push({
+            id: `${logDoc.id}_out`,
+            plate: plateNumber,
+            type: "time_out",
+            name,
+            role,
+            time: `${timeString} • ${dateString}`,
+            timestamp,
+            guardRef: data.guardRef,
+            studentRef: data.studentRef,
+            vehicleType,
+            status: status === "completed" ? "check_out" : "pending",
+          });
+        }
+      }
+
+      // Sort all combined events by timestamp descending
+      allEvents.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+      // Filter by search query
+      return allEvents.filter((log) => {
+        const matchesSearch =
+          !searchQuery ||
+          log.plate.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          log.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          log.role.toLowerCase().includes(searchQuery.toLowerCase());
+
+        return matchesSearch;
+      });
+    } catch (error) {
+      console.error("Error fetching audit logs:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Get today's vehicle count
+   */
+  getTodayVehicleCount: async (): Promise<number> => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const timeLogsRef = collection(db, "TimeLogs");
+      const q = query(
+        timeLogsRef,
+        where("time_in", ">=", Timestamp.fromDate(today)),
+        where("time_in", "<", Timestamp.fromDate(tomorrow)),
+      );
+
+      const snapshot = await getDocs(q);
+      return snapshot.size;
+    } catch (error) {
+      console.error("Error getting vehicle count:", error);
+      return 0;
+    }
+  },
+
+  /**
+   * Get parking hours data for today (vehicle entries per hour)
+   */
+  getParkingHoursData: async (): Promise<ParkingHourData[]> => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const timeLogsRef = collection(db, "TimeLogs");
+      const q = query(
+        timeLogsRef,
+        where("time_in", ">=", Timestamp.fromDate(today)),
+        where("time_in", "<", Timestamp.fromDate(tomorrow)),
+        orderBy("time_in", "asc"),
+      );
+
+      const snapshot = await getDocs(q);
+
+      // Initialize hour counts (0-23)
+      const hourCounts: { [key: number]: number } = {};
+      for (let i = 0; i < 24; i++) {
+        hourCounts[i] = 0;
+      }
+
+      // Count entries per hour
+      snapshot.forEach((doc) => {
+        const timestamp = doc.data().time_in?.toDate();
+        if (timestamp) {
+          const hour = timestamp.getHours();
+          hourCounts[hour]++;
+        }
+      });
+
+      // Convert to array format with calculated heights (max 100)
+      const maxCount = Math.max(...Object.values(hourCounts), 1);
+      const hoursData: ParkingHourData[] = [];
+
+      // Show key hours (6 AM - 6 PM)
+      const displayHours = [6, 9, 12, 15, 18];
+      for (const hour of displayHours) {
+        const count = hourCounts[hour] || 0;
+        const height = (count / maxCount) * 100;
+
+        hoursData.push({
+          hour: `${hour}:00`,
+          count,
+          height: Math.max(height, 20), // Minimum visible height
+        });
+      }
+
+      return hoursData;
+    } catch (error) {
+      console.error("Error getting parking hours data:", error);
+      return [];
     }
   },
 };

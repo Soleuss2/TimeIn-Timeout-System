@@ -12,6 +12,8 @@ export default {
     newArchEnabled: true,
     ios: {
       supportsTablet: true,
+      bundleIdentifier: "com.soleussz.StudentPortalApp",  // ← ADD THIS LINE
+      googleServicesFile: process.env.GOOGLE_SERVICE_INFO_PLIST || "./GoogleService-Info.plist",  // ← ADD THIS FOR FIREBASE
     },
     android: {
       // In EAS Build, we can provide the file via a Secret.
