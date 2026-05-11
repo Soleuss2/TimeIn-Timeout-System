@@ -102,6 +102,25 @@ export default function GuardScreen() {
 
     // Support multiple roles — extract a unified user ID
     const userId = parsed.studentId || parsed.id;
+    if (!userId && !parsed.plateNumber) {
+      setAlertConfig({
+        title: "Invalid QR Code",
+        message: "The QR code is missing required identification details.",
+        type: "error",
+        buttons: [
+          {
+            text: "OK",
+            onPress: () => {
+              setAlertVisible(false);
+              setScannedData(null);
+            },
+            style: "default",
+          },
+        ],
+      });
+      setAlertVisible(true);
+      return;
+    }
 
     try {
       const result = await processGuardEntry({
