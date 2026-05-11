@@ -8,6 +8,8 @@ import { AuthService, User } from "../services/authService";
 // Define which roles can access which routes
 const ROLE_ACCESS: Record<string, string[]> = {
   student: ["student"],
+  faculty: ["student"],
+  staff: ["student"],
   guard: ["guard", "guard-activity", "add-visitor"],
   admin: ["admin", "activity", "add-visitor"],
 };
@@ -102,7 +104,7 @@ export default function RootLayout() {
         <Stack.Screen
           name="student"
           options={{
-            title: "Student Portal",
+            title: "Campus Parking Access Portal",
             headerBackTitle: "Back",
             gestureEnabled: true,
           }}
