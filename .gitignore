@@ -3,6 +3,11 @@
 # dependencies
 node_modules/
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 # Expo
 .expo/
 dist/
@@ -41,3 +46,10 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Google Services
+google-services.json
+GoogleService-Info.plist
+
+#temporary files
+google-services.txt

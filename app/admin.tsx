@@ -1,3 +1,3 @@
-import AdminScreen from './screens/AdminScreen';
+import AdminScreen from "./screens/AdminScreen";
 
 export default AdminScreen;

@@ -1,33 +1,57 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
-import { AuthService } from '../../services/authService';
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { AuthService } from "../../services/authService";
+import { LoaderComponent } from "../../components/LoaderComponent";
+import { CustomAlert, AlertAction } from "../../components/CustomAlert";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(
+    null,
+  );
+
+  // Alert state
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{
+    title: string;
+    message: string;
+    type: "info" | "warning" | "error" | "success";
+    buttons: AlertAction[];
+  }>({
+    title: "",
+    message: "",
+    type: "info",
+    buttons: [],
+  });
 
   const handleLogin = async () => {
+    // Reset error state
+    setErrorMessage("");
+    setAttemptsRemaining(null);
+
     if (!username || !password) {
-      Alert.alert('Validation', 'Please enter both username and password');
+      setErrorMessage("Please enter both username and password");
       return;
     }
 
@@ -36,23 +60,94 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (!result.success) {
-      Alert.alert('Login failed', result.message);
+      setErrorMessage(result.message);
+
+      // Display attempts remaining if available
+      if (
+        result.attemptsRemaining !== undefined &&
+        result.attemptsRemaining >= 0
+      ) {
+        setAttemptsRemaining(result.attemptsRemaining);
+        if (result.attemptsRemaining > 0) {
+          setAlertConfig({
+            title: "Login Failed",
+            message: `${result.message}\n\nAttempts remaining: ${result.attemptsRemaining}`,
+            type: "error",
+            buttons: [
+              {
+                text: "Try Again",
+                onPress: () => setAlertVisible(false),
+                style: "default",
+              },
+            ],
+          });
+        } else {
+          setAlertConfig({
+            title: "Account Locked",
+            message: result.message,
+            type: "error",
+            buttons: [
+              {
+                text: "OK",
+                onPress: () => setAlertVisible(false),
+                style: "default",
+              },
+            ],
+          });
+        }
+      } else {
+        setAlertConfig({
+          title: "Login Failed",
+          message: result.message,
+          type: "error",
+          buttons: [
+            {
+              text: "Try Again",
+              onPress: () => setAlertVisible(false),
+              style: "default",
+            },
+          ],
+        });
+      }
+      setAlertVisible(true);
       return;
     }
 
     const user = result.user;
     if (!user) {
-      Alert.alert('Login failed', 'No user data available.');
+      setErrorMessage("No user data available.");
+      setAlertConfig({
+        title: "Login Failed",
+        message: "No user data available.",
+        type: "error",
+        buttons: [
+          {
+            text: "OK",
+            onPress: () => setAlertVisible(false),
+            style: "default",
+          },
+        ],
+      });
+      setAlertVisible(true);
       return;
     }
 
-    if (user.role === 'admin') {
-      router.push('/admin');
-    } else if (user.role === 'guard') {
-      router.push('/guard');
+    // Clear any error on successful login
+    setErrorMessage("");
+    setAttemptsRemaining(null);
+
+    // Store user data in AsyncStorage for session persistence
+    try {
+      await AsyncStorage.setItem("user", JSON.stringify(user));
+    } catch (error) {}
+
+    if (user.role === "admin") {
+      router.push("/admin");
+    } else if (user.role === "guard") {
+      router.push("/guard");
     } else {
       router.push({
-        pathname: '/student',
+        pathname: "/student",
         params: { studentId: user.id },
       });
     }
@@ -60,13 +155,27 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {Platform.OS !== 'web' && <StatusBar barStyle="light-content" backgroundColor="#11412a" />}
+      <LoaderComponent
+        visible={loading}
+        message="Signing in..."
+        logoSize={100}
+      />
+      <CustomAlert
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        buttons={alertConfig.buttons}
+      />
+      {Platform.OS !== "web" && (
+        <StatusBar barStyle="light-content" backgroundColor="#11412a" />
+      )}
       <View style={styles.backgroundShapeTop} />
       <View style={styles.backgroundShapeBottom} />
 
       <KeyboardAvoidingView
         style={styles.keyboardWrap}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView
           contentContainerStyle={styles.container}
@@ -86,7 +195,7 @@ export default function LoginScreen() {
                 </View>
                 <View style={styles.heroBadge}>
                   <Image
-                    source={require('../../assets/images/qcu-logo.jpg')}
+                    source={require("../../assets/images/qcu-logo.jpg")}
                     style={styles.heroBadgeImage}
                     resizeMode="contain"
                   />
@@ -95,11 +204,19 @@ export default function LoginScreen() {
 
               <View style={styles.heroPills}>
                 <View style={styles.heroPill}>
-                  <Ionicons name="shield-checkmark-outline" size={16} color="#1f8e4d" />
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={16}
+                    color="#1f8e4d"
+                  />
                   <Text style={styles.heroPillText}>Secure portal</Text>
                 </View>
                 <View style={styles.heroPillSecondary}>
-                  <Ionicons name="phone-portrait-outline" size={16} color="#fff" />
+                  <Ionicons
+                    name="phone-portrait-outline"
+                    size={16}
+                    color="#fff"
+                  />
                   <Text style={styles.heroPillTextSecondary}>Mobile ready</Text>
                 </View>
               </View>
@@ -134,7 +251,11 @@ export default function LoginScreen() {
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Password</Text>
                 <View style={styles.inputWrapper}>
-                  <Ionicons name="lock-closed-outline" size={18} color="#7d8a99" />
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={18}
+                    color="#7d8a99"
+                  />
                   <TextInput
                     style={styles.input}
                     placeholder="Enter your password"
@@ -148,10 +269,12 @@ export default function LoginScreen() {
                   <TouchableOpacity
                     onPress={() => setShowPassword(!showPassword)}
                     accessibilityRole="button"
-                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                    accessibilityLabel={
+                      showPassword ? "Hide password" : "Show password"
+                    }
                   >
                     <Ionicons
-                      name={showPassword ? 'eye' : 'eye-off'}
+                      name={showPassword ? "eye" : "eye-off"}
                       size={18}
                       color="#7d8a99"
                     />
@@ -159,9 +282,38 @@ export default function LoginScreen() {
                 </View>
               </View>
 
+              {/* Error Message Display */}
+              {errorMessage ? (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={18} color="#d32f2f" />
+                  <View style={styles.errorContent}>
+                    <Text style={styles.errorMessage}>{errorMessage}</Text>
+                    {attemptsRemaining !== null && attemptsRemaining > 0 && (
+                      <Text style={styles.attemptsText}>
+                        Attempts remaining: {attemptsRemaining}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ) : null}
+
               <TouchableOpacity
                 style={styles.forgotButton}
-                onPress={() => Alert.alert('Password Recovery', 'Feature coming soon. Contact support.')}
+                onPress={() => {
+                  setAlertConfig({
+                    title: "Password Recovery",
+                    message: "Feature coming soon. Contact support.",
+                    type: "info",
+                    buttons: [
+                      {
+                        text: "OK",
+                        onPress: () => setAlertVisible(false),
+                        style: "default",
+                      },
+                    ],
+                  });
+                  setAlertVisible(true);
+                }}
               >
                 <Text style={styles.forgotText}>Forgot Password?</Text>
               </TouchableOpacity>
@@ -177,14 +329,21 @@ export default function LoginScreen() {
                 ) : (
                   <View style={styles.buttonContent}>
                     <Text style={styles.buttonText}>SIGN IN</Text>
-                    <Ionicons name="arrow-forward" size={16} color="#fff" style={styles.buttonIcon} />
+                    <Ionicons
+                      name="arrow-forward"
+                      size={16}
+                      color="#fff"
+                      style={styles.buttonIcon}
+                    />
                   </View>
                 )}
               </TouchableOpacity>
             </View>
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>© 2024 Quezon City University</Text>
+              <Text style={styles.footerText}>
+                © 2024 Quezon City University
+              </Text>
               <Text style={styles.versionText}>v1.0.0</Text>
             </View>
           </View>
@@ -197,28 +356,28 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#eef4ef',
+    backgroundColor: "#eef4ef",
   },
   keyboardWrap: {
     flex: 1,
   },
   backgroundShapeTop: {
-    position: 'absolute',
+    position: "absolute",
     top: -60,
     right: -40,
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: 'rgba(31, 142, 77, 0.08)',
+    backgroundColor: "rgba(31, 142, 77, 0.08)",
   },
   backgroundShapeBottom: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 30,
     left: -70,
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: 'rgba(17, 65, 42, 0.05)',
+    backgroundColor: "rgba(17, 65, 42, 0.05)",
   },
   container: {
     flexGrow: 1,
@@ -227,48 +386,48 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
   },
   contentShell: {
-    width: '100%',
+    width: "100%",
     maxWidth: 560,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   heroCard: {
-    backgroundColor: '#11412a',
+    backgroundColor: "#11412a",
     borderRadius: 32,
     padding: 24,
     marginBottom: 18,
-    overflow: 'hidden',
-    shadowColor: '#0b1b12',
+    overflow: "hidden",
+    shadowColor: "#0b1b12",
     shadowOpacity: 0.22,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
     elevation: 8,
   },
   heroTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   heroCopy: {
     flex: 1,
     paddingRight: 16,
   },
   heroEyebrow: {
-    color: '#b6f0c8',
+    color: "#b6f0c8",
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 1.4,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     marginBottom: 8,
   },
   heroTitle: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 28,
-    fontWeight: '900',
+    fontWeight: "900",
     lineHeight: 34,
     marginBottom: 10,
   },
   heroSubtitle: {
-    color: '#d5e8d9',
+    color: "#d5e8d9",
     fontSize: 14,
     lineHeight: 21,
   },
@@ -276,26 +435,26 @@ const styles = StyleSheet.create({
     width: 112,
     height: 112,
     borderRadius: 56,
-    backgroundColor: '#ffffff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
+    backgroundColor: "#ffffff",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
   },
   heroBadgeImage: {
-    width: '88%',
-    height: '88%',
+    width: "88%",
+    height: "88%",
     borderRadius: 56,
   },
   heroPills: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
     marginTop: 20,
   },
   heroPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#eaf7ef',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#eaf7ef",
     borderRadius: 999,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -303,34 +462,34 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   heroPillSecondary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
     borderRadius: 999,
     paddingVertical: 10,
     paddingHorizontal: 14,
     marginBottom: 10,
   },
   heroPillText: {
-    color: '#155332',
+    color: "#155332",
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     marginLeft: 8,
   },
   heroPillTextSecondary: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     marginLeft: 8,
   },
   formCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 32,
     padding: 24,
     marginBottom: 18,
     borderWidth: 1,
-    borderColor: '#e5ece7',
-    shadowColor: '#000',
+    borderColor: "#e5ece7",
+    shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -340,21 +499,21 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   formLabel: {
-    color: '#1f8e4d',
+    color: "#1f8e4d",
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     marginBottom: 4,
   },
   formTitle: {
-    color: '#0f2818',
+    color: "#0f2818",
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: "900",
     marginBottom: 8,
   },
   formSubtitle: {
-    color: '#607181',
+    color: "#607181",
     fontSize: 14,
     lineHeight: 20,
   },
@@ -363,46 +522,46 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#2d3a4b',
+    fontWeight: "700",
+    color: "#2d3a4b",
     marginBottom: 8,
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fbf9',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fbf9",
     borderRadius: 14,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: '#e4ede6',
+    borderColor: "#e4ede6",
     height: 54,
   },
   input: {
     flex: 1,
     marginHorizontal: 10,
-    color: '#0f172a',
+    color: "#0f172a",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 0.2,
   },
   forgotButton: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     marginBottom: 20,
     paddingVertical: 8,
   },
   forgotText: {
-    color: '#216b43',
-    fontWeight: '700',
+    color: "#216b43",
+    fontWeight: "700",
     fontSize: 13,
   },
   button: {
-    backgroundColor: '#1f8e4d',
+    backgroundColor: "#1f8e4d",
     borderRadius: 16,
     height: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 6,
-    shadowColor: '#1f8e4d',
+    shadowColor: "#1f8e4d",
     shadowOpacity: 0.24,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -412,13 +571,13 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
-    color: '#fff',
-    fontWeight: '800',
+    color: "#fff",
+    fontWeight: "800",
     fontSize: 15,
     letterSpacing: 0.8,
   },
@@ -426,19 +585,45 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   footer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 2,
     paddingTop: 16,
   },
   footerText: {
     fontSize: 12,
-    color: '#7d8a99',
-    fontWeight: '500',
+    color: "#7d8a99",
+    fontWeight: "500",
   },
   versionText: {
     fontSize: 11,
-    color: '#b0b7c1',
+    color: "#b0b7c1",
     marginTop: 4,
-    fontWeight: '500',
+    fontWeight: "500",
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#ffebee",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: "#d32f2f",
+  },
+  errorContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  errorMessage: {
+    color: "#d32f2f",
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  attemptsText: {
+    color: "#c62828",
+    fontSize: 12,
+    fontWeight: "500",
+    marginTop: 4,
   },
 });

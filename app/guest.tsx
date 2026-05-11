@@ -1,3 +1,3 @@
-import GuestScreen from './screens/GuestScreen';
+import GuestScreen from "./screens/GuestScreen";
 
 export default GuestScreen;

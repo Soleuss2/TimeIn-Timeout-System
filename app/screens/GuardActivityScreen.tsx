@@ -1,42 +1,45 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
 import {
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
-import { MOCK_ACTIVITY_LOGS } from '../../services/mockData';
-import type { ActivityLog } from '../../types';
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { MOCK_ACTIVITY_LOGS } from "../../services/mockData";
+import type { ActivityLog } from "../../types";
 
-const DATE_OPTIONS = ['All Date', 'Today', 'Yesterday'] as const;
-const ENTRY_OPTIONS = ['All Entry', 'Student', 'Visitor'] as const;
-const VEHICLE_OPTIONS = ['All Vehicles', 'Motorcycle', 'Car'] as const;
+const DATE_OPTIONS = ["All Date", "Today", "Yesterday"] as const;
+const ENTRY_OPTIONS = ["All Entry", "Student", "Visitor"] as const;
+const VEHICLE_OPTIONS = ["All Vehicles", "Motorcycle", "Car"] as const;
 
 function getIconName(item: ActivityLog) {
-  return item.studentId.startsWith('VIS') ? 'bicycle' : 'car-sport';
+  return item.studentId.startsWith("VIS") ? "bicycle" : "car-sport";
 }
 
 function getEntryLabel(item: ActivityLog) {
-  return item.studentId.startsWith('VIS') ? 'VISITOR' : 'STUDENT';
+  return item.studentId.startsWith("VIS") ? "VISITOR" : "STUDENT";
 }
 
 function getStatusBadge(item: ActivityLog) {
-  return !item.timeOut ? 'ON CAMPUS' : null;
+  return !item.timeOut ? "ON CAMPUS" : null;
 }
 
 export default function GuardActivityScreen() {
   const router = useRouter();
-  const [search, setSearch] = useState('');
-  const [dateFilter, setDateFilter] = useState<typeof DATE_OPTIONS[number]>('All Date');
-  const [entryFilter, setEntryFilter] = useState<typeof ENTRY_OPTIONS[number]>('All Entry');
-  const [vehicleFilter, setVehicleFilter] = useState<typeof VEHICLE_OPTIONS[number]>('All Vehicles');
+  const [search, setSearch] = useState("");
+  const [dateFilter, setDateFilter] =
+    useState<(typeof DATE_OPTIONS)[number]>("All Date");
+  const [entryFilter, setEntryFilter] =
+    useState<(typeof ENTRY_OPTIONS)[number]>("All Entry");
+  const [vehicleFilter, setVehicleFilter] =
+    useState<(typeof VEHICLE_OPTIONS)[number]>("All Vehicles");
   const [expandedFilter, setExpandedFilter] = useState<string | null>(null);
 
   const filteredLogs = MOCK_ACTIVITY_LOGS.filter((item) => {
@@ -46,14 +49,14 @@ export default function GuardActivityScreen() {
       item.studentId.toLowerCase().includes(search.toLowerCase());
 
     const matchesEntry =
-      entryFilter === 'All Entry' ||
-      (entryFilter === 'Student' && !item.studentId.startsWith('VIS')) ||
-      (entryFilter === 'Visitor' && item.studentId.startsWith('VIS'));
+      entryFilter === "All Entry" ||
+      (entryFilter === "Student" && !item.studentId.startsWith("VIS")) ||
+      (entryFilter === "Visitor" && item.studentId.startsWith("VIS"));
 
     const matchesVehicle =
-      vehicleFilter === 'All Vehicles' ||
-      (vehicleFilter === 'Motorcycle' && item.studentId.startsWith('VIS')) ||
-      (vehicleFilter === 'Car' && !item.studentId.startsWith('VIS'));
+      vehicleFilter === "All Vehicles" ||
+      (vehicleFilter === "Motorcycle" && item.studentId.startsWith("VIS")) ||
+      (vehicleFilter === "Car" && !item.studentId.startsWith("VIS"));
 
     return matchesSearch && matchesEntry && matchesVehicle;
   });
@@ -64,12 +67,17 @@ export default function GuardActivityScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {Platform.OS !== 'web' && <StatusBar barStyle="light-content" backgroundColor="#1f8e4d" />}
+      {Platform.OS !== "web" && (
+        <StatusBar barStyle="light-content" backgroundColor="#1f8e4d" />
+      )}
       <View style={styles.backgroundShapeTop} />
       <View style={styles.backgroundShapeBottom} />
 
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
           <Ionicons name="arrow-back" size={20} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerCopy}>
@@ -79,7 +87,10 @@ export default function GuardActivityScreen() {
         <Ionicons name="bar-chart-outline" size={24} color="#fff" />
       </View>
 
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.contentShell}>
           {/* Stats Grid */}
           <View style={styles.statsGrid}>
@@ -125,16 +136,20 @@ export default function GuardActivityScreen() {
             <View style={styles.filterContainer}>
               <TouchableOpacity
                 style={styles.filterHeader}
-                onPress={() => setExpandedFilter(expandedFilter === 'date' ? null : 'date')}
+                onPress={() =>
+                  setExpandedFilter(expandedFilter === "date" ? null : "date")
+                }
               >
                 <Text style={styles.filterHeaderText}>{dateFilter}</Text>
                 <Ionicons
-                  name={expandedFilter === 'date' ? 'chevron-up' : 'chevron-down'}
+                  name={
+                    expandedFilter === "date" ? "chevron-up" : "chevron-down"
+                  }
                   size={16}
                   color="#1f8e4d"
                 />
               </TouchableOpacity>
-              {expandedFilter === 'date' && (
+              {expandedFilter === "date" && (
                 <View style={styles.filterDropdown}>
                   {DATE_OPTIONS.map((option) => (
                     <TouchableOpacity
@@ -151,7 +166,8 @@ export default function GuardActivityScreen() {
                       <Text
                         style={[
                           styles.filterOptionText,
-                          dateFilter === option && styles.filterOptionTextActive,
+                          dateFilter === option &&
+                            styles.filterOptionTextActive,
                         ]}
                       >
                         {option}
@@ -165,16 +181,20 @@ export default function GuardActivityScreen() {
             <View style={styles.filterContainer}>
               <TouchableOpacity
                 style={styles.filterHeader}
-                onPress={() => setExpandedFilter(expandedFilter === 'entry' ? null : 'entry')}
+                onPress={() =>
+                  setExpandedFilter(expandedFilter === "entry" ? null : "entry")
+                }
               >
                 <Text style={styles.filterHeaderText}>{entryFilter}</Text>
                 <Ionicons
-                  name={expandedFilter === 'entry' ? 'chevron-up' : 'chevron-down'}
+                  name={
+                    expandedFilter === "entry" ? "chevron-up" : "chevron-down"
+                  }
                   size={16}
                   color="#1f8e4d"
                 />
               </TouchableOpacity>
-              {expandedFilter === 'entry' && (
+              {expandedFilter === "entry" && (
                 <View style={styles.filterDropdown}>
                   {ENTRY_OPTIONS.map((option) => (
                     <TouchableOpacity
@@ -191,7 +211,8 @@ export default function GuardActivityScreen() {
                       <Text
                         style={[
                           styles.filterOptionText,
-                          entryFilter === option && styles.filterOptionTextActive,
+                          entryFilter === option &&
+                            styles.filterOptionTextActive,
                         ]}
                       >
                         {option}
@@ -205,16 +226,22 @@ export default function GuardActivityScreen() {
             <View style={styles.filterContainer}>
               <TouchableOpacity
                 style={styles.filterHeader}
-                onPress={() => setExpandedFilter(expandedFilter === 'vehicle' ? null : 'vehicle')}
+                onPress={() =>
+                  setExpandedFilter(
+                    expandedFilter === "vehicle" ? null : "vehicle",
+                  )
+                }
               >
                 <Text style={styles.filterHeaderText}>{vehicleFilter}</Text>
                 <Ionicons
-                  name={expandedFilter === 'vehicle' ? 'chevron-up' : 'chevron-down'}
+                  name={
+                    expandedFilter === "vehicle" ? "chevron-up" : "chevron-down"
+                  }
                   size={16}
                   color="#1f8e4d"
                 />
               </TouchableOpacity>
-              {expandedFilter === 'vehicle' && (
+              {expandedFilter === "vehicle" && (
                 <View style={styles.filterDropdown}>
                   {VEHICLE_OPTIONS.map((option) => (
                     <TouchableOpacity
@@ -231,7 +258,8 @@ export default function GuardActivityScreen() {
                       <Text
                         style={[
                           styles.filterOptionText,
-                          vehicleFilter === option && styles.filterOptionTextActive,
+                          vehicleFilter === option &&
+                            styles.filterOptionTextActive,
                         ]}
                       >
                         {option}
@@ -246,17 +274,27 @@ export default function GuardActivityScreen() {
           {/* Activity Table */}
           <View style={styles.logsCard}>
             <View style={styles.tableHeader}>
-              <Text style={[styles.columnText, styles.columnId]}>ID NUMBER</Text>
+              <Text style={[styles.columnText, styles.columnId]}>
+                ID NUMBER
+              </Text>
               <Text style={[styles.columnText, styles.columnName]}>NAME</Text>
-              <Text style={[styles.columnText, styles.columnVehicle]}>VEHICLE</Text>
-              <Text style={[styles.columnText, styles.columnTimeIn]}>TIME-IN</Text>
-              <Text style={[styles.columnText, styles.columnTimeOut]}>TIME-OUT</Text>
+              <Text style={[styles.columnText, styles.columnVehicle]}>
+                VEHICLE
+              </Text>
+              <Text style={[styles.columnText, styles.columnTimeIn]}>
+                TIME-IN
+              </Text>
+              <Text style={[styles.columnText, styles.columnTimeOut]}>
+                TIME-OUT
+              </Text>
               <Text style={[styles.columnText, styles.columnDate]}>DATE</Text>
             </View>
 
             {filteredLogs.map((item: ActivityLog) => (
               <View key={item.id} style={styles.logItem}>
-                <Text style={[styles.columnId, styles.logId]}>{item.studentId}</Text>
+                <Text style={[styles.columnId, styles.logId]}>
+                  {item.studentId}
+                </Text>
                 <View style={[styles.columnName]}>
                   <Text style={styles.logName}>{item.name}</Text>
                   <Text style={styles.logRole}>{getEntryLabel(item)}</Text>
@@ -267,15 +305,21 @@ export default function GuardActivityScreen() {
                   </View>
                   <Text style={styles.logPlate}>{item.plate}</Text>
                 </View>
-                <Text style={[styles.columnTimeIn, styles.logTime]}>{item.timeIn}</Text>
+                <Text style={[styles.columnTimeIn, styles.logTime]}>
+                  {item.timeIn}
+                </Text>
                 <View style={[styles.columnTimeOut]}>
                   {getStatusBadge(item) ? (
-                    <Text style={styles.statusBadgeText}>{getStatusBadge(item)}</Text>
+                    <Text style={styles.statusBadgeText}>
+                      {getStatusBadge(item)}
+                    </Text>
                   ) : (
                     <Text style={styles.timeOutText}>{item.timeOut}</Text>
                   )}
                 </View>
-                <Text style={[styles.columnDate, styles.logDate]}>05/01/2026</Text>
+                <Text style={[styles.columnDate, styles.logDate]}>
+                  05/01/2026
+                </Text>
               </View>
             ))}
 
@@ -290,25 +334,25 @@ export default function GuardActivityScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#eef4ef',
+    backgroundColor: "#eef4ef",
   },
   backgroundShapeTop: {
-    position: 'absolute',
+    position: "absolute",
     top: -60,
     right: -40,
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: 'rgba(31, 142, 77, 0.08)',
+    backgroundColor: "rgba(31, 142, 77, 0.08)",
   },
   backgroundShapeBottom: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 30,
     left: -70,
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: 'rgba(17, 65, 42, 0.05)',
+    backgroundColor: "rgba(17, 65, 42, 0.05)",
   },
   container: {
     flexGrow: 1,
@@ -317,52 +361,52 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
   },
   contentShell: {
-    width: '100%',
+    width: "100%",
     maxWidth: 560,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   header: {
-    backgroundColor: '#1f8e4d',
+    backgroundColor: "#1f8e4d",
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 22,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   backButton: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.18)",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   headerCopy: {
     flex: 1,
   },
   headerTitle: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   headerSubtitle: {
-    color: '#d6f0d9',
+    color: "#d6f0d9",
     marginTop: 4,
     fontSize: 13,
   },
   statsGrid: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginBottom: 16,
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOpacity: 0.04,
     shadowRadius: 12,
     elevation: 2,
@@ -371,42 +415,42 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#f0f5f2',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#f0f5f2",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 8,
   },
   statValue: {
     fontSize: 24,
-    fontWeight: '900',
-    color: '#1f2d3d',
+    fontWeight: "900",
+    color: "#1f2d3d",
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 11,
-    color: '#8f9ba7',
-    fontWeight: '700',
+    color: "#8f9ba7",
+    fontWeight: "700",
   },
   searchCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     marginBottom: 16,
   },
   searchInput: {
     flex: 1,
     marginLeft: 10,
     fontSize: 14,
-    color: '#333',
+    color: "#333",
   },
   filterRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 16,
     gap: 10,
   },
@@ -414,73 +458,73 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   filterHeader: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#ddd',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    borderColor: "#ddd",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     zIndex: 10,
   },
   filterHeaderText: {
-    color: '#333',
+    color: "#333",
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   filterDropdown: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     borderTopWidth: 0,
     marginTop: -1,
-    overflow: 'hidden',
+    overflow: "hidden",
     zIndex: 9,
   },
   filterOption: {
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: "#f0f0f0",
   },
   filterOptionActive: {
-    backgroundColor: '#eaf6ef',
+    backgroundColor: "#eaf6ef",
   },
   filterOptionText: {
-    color: '#666',
+    color: "#666",
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   filterOptionTextActive: {
-    color: '#1f8e4d',
-    fontWeight: '800',
+    color: "#1f8e4d",
+    fontWeight: "800",
   },
   logsCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 24,
     padding: 0,
     marginBottom: 18,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.04,
     shadowRadius: 16,
     elevation: 3,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   tableHeader: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#edf2f7',
-    backgroundColor: '#fbfcfd',
+    borderBottomColor: "#edf2f7",
+    backgroundColor: "#fbfcfd",
   },
   columnText: {
-    color: '#8f9ba7',
+    color: "#8f9ba7",
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.4,
   },
   columnId: {
@@ -491,88 +535,88 @@ const styles = StyleSheet.create({
   },
   columnVehicle: {
     flex: 1.2,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   columnTimeIn: {
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
   },
   columnTimeOut: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   columnDate: {
     flex: 0.9,
-    textAlign: 'right',
+    textAlign: "right",
   },
   logItem: {
-    flexDirection: 'row',
+    flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: '#edf2f7',
+    borderBottomColor: "#edf2f7",
     paddingHorizontal: 16,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
   },
   logId: {
-    color: '#2d3a4b',
-    fontWeight: '800',
+    color: "#2d3a4b",
+    fontWeight: "800",
     fontSize: 12,
   },
   logName: {
-    color: '#1f2d3d',
+    color: "#1f2d3d",
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: "800",
     marginBottom: 2,
   },
   logRole: {
-    color: '#8f9ba7',
+    color: "#8f9ba7",
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   vehicleBadge: {
     width: 28,
     height: 28,
     borderRadius: 10,
-    backgroundColor: '#1f8e4d',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#1f8e4d",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 8,
   },
   logPlate: {
-    color: '#1f2d3d',
+    color: "#1f2d3d",
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   logTime: {
-    color: '#1f2d3d',
+    color: "#1f2d3d",
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   timeOutText: {
-    color: '#1f2d3d',
+    color: "#1f2d3d",
     fontSize: 12,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontWeight: "800",
+    textAlign: "center",
   },
   logDate: {
-    color: '#1f2d3d',
+    color: "#1f2d3d",
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   statusBadgeText: {
-    backgroundColor: '#d4f4dd',
-    color: '#1f8e4d',
+    backgroundColor: "#d4f4dd",
+    color: "#1f8e4d",
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: "800",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
   },
   endText: {
-    color: '#8f9ba7',
-    textAlign: 'center',
+    color: "#8f9ba7",
+    textAlign: "center",
     marginTop: 8,
     fontSize: 12,
     paddingVertical: 16,

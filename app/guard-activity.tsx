@@ -1,3 +1,3 @@
-import GuardActivityScreen from './screens/GuardActivityScreen';
+import GuardActivityScreen from "./screens/GuardActivityScreen";
 
 export default GuardActivityScreen;
