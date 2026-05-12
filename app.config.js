@@ -2,11 +2,11 @@ import "dotenv/config";
 
 export default {
   expo: {
-    name: "StudentPortalApp",
+    name: "QPMS",
     slug: "StudentPortalApp",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/images/icon.png",
+    icon: "./assets/images/qcu-logo.jpg",
     scheme: "studentportalapp",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
