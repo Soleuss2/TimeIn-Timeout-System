@@ -191,6 +191,7 @@ export default function AddVisitorScreen() {
       const result = await processGuardEntry({
         name: visitorName.trim(),
         plateNumber: plateNumber.trim().toUpperCase(),
+        vehicleType: vehicleType.trim(),
         role: "visitor",
         method: "MANUAL",
       });

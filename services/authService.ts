@@ -2,8 +2,9 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
+  sendPasswordResetEmail,
 } from "firebase/auth";
-import { doc, getDoc, updateDoc, Timestamp } from "firebase/firestore";
+import { doc, getDoc, updateDoc, Timestamp, collection, query, where, getDocs } from "firebase/firestore";
 import { authRef, db } from "./firebaseConfig";
 import { SecurityService } from "./securityService";
 
@@ -24,40 +25,97 @@ export interface LoginResponse {
   minutesLocked?: number;
 }
 
+// Helper function to resolve ID/username to email
+const resolveIdentifierToEmail = async (identifier: string): Promise<string | null> => {
+  const sanitized = identifier.trim();
+  
+  // If it's already an email, return it
+  if (sanitized.includes("@")) {
+    return SecurityService.validateEmail(sanitized) ? sanitized : null;
+  }
+  
+  // If it looks like an ID (numeric or alphanumeric), search for it
+  // Search in students collection
+  try {
+    const studentsRef = collection(db, "students");
+    const q = query(
+      studentsRef,
+      where("studentId", "==", sanitized)
+    );
+    const snapshot = await getDocs(q);
+    if (snapshot.size > 0) {
+      const userData = snapshot.docs[0].data();
+      return userData.email || null;
+    }
+  } catch (error) {
+    console.error("Error searching students by ID:", error);
+  }
+  
+  // Search in guards collection
+  try {
+    const guardsRef = collection(db, "guards");
+    const q = query(
+      guardsRef,
+      where("employeeId", "==", sanitized)
+    );
+    const snapshot = await getDocs(q);
+    if (snapshot.size > 0) {
+      const userData = snapshot.docs[0].data();
+      return userData.email || null;
+    }
+  } catch (error) {
+    console.error("Error searching guards by ID:", error);
+  }
+  
+  // Try as username - append domain
+  const emailFromUsername = `${sanitized}@qcu.edu.ph`;
+  return SecurityService.validateEmail(emailFromUsername) ? emailFromUsername : null;
+};
+
 export const AuthService = {
   login: async (username: string, password: string): Promise<LoginResponse> => {
+    // Input validation
+    if (!username || !password) {
+      console.warn("⚠️ Missing username or password");
+      return {
+        success: false,
+        message: "Please enter both username and password.",
+      };
+    }
+
+    // Trim and sanitize inputs
+    const sanitizedUsername = username.trim();
+    const sanitizedPassword = password.trim();
+
+    if (sanitizedUsername.length === 0 || sanitizedPassword.length === 0) {
+      return {
+        success: false,
+        message: "Username and password cannot be empty.",
+      };
+    }
+
+    // Determine email by resolving identifier (email, student ID, or guard ID)
+    // DO THIS OUTSIDE THE TRY BLOCK so email is available in catch block
+    let email = "";
     try {
-      // Input validation
-      if (!username || !password) {
-        console.warn("⚠️ Missing username or password");
+      email = (await resolveIdentifierToEmail(sanitizedUsername)) || "";
+      // Normalize email: trim and lowercase for consistency in storage
+      email = email.trim().toLowerCase();
+      console.log("🔍 Resolved email:", email);
+    } catch (resolveError) {
+      console.warn("Error resolving identifier:", resolveError);
+      return {
+        success: false,
+        message: "Invalid email, student ID, or username format.",
+      };
+    }
+
+    try {
+      // Email validation
+      if (!email) {
         return {
           success: false,
-          message: "Please enter both username and password.",
-        };
-      }
-
-      // Trim and sanitize inputs
-      const sanitizedUsername = username.trim();
-      const sanitizedPassword = password.trim();
-
-      if (sanitizedUsername.length === 0 || sanitizedPassword.length === 0) {
-        return {
-          success: false,
-          message: "Username and password cannot be empty.",
-        };
-      }
-
-      // Determine email
-      let email = sanitizedUsername;
-      if (!sanitizedUsername.includes("@")) {
-        email = `${sanitizedUsername}@qcu.edu.ph`;
-      }
-
-      // Validate email format
-      if (!SecurityService.validateEmail(email)) {
-        return {
-          success: false,
-          message: "Invalid email or username format.",
+          message: "Invalid email, student ID, or username format.",
         };
       }
 
@@ -242,33 +300,20 @@ export const AuthService = {
         message: `Welcome, ${user.name}`,
       };
     } catch (error: any) {
-      // Extract email for rate limiting
-      let email = "";
-      try {
-        email = error.customData?.email || "";
-      } catch (e) {
-        // Ignore
-      }
-
-      // Determine email from username if possible
-      if (!email) {
-        // Try to infer from error message or use a generic approach
-      }
-
       // ============ SECURITY: Rate limiting on failed attempts ============
+      // Use the email we resolved earlier (guaranteed to be valid)
       let attemptsRemaining = 5;
       let isNowLocked = false;
 
-      // Reconstruct email if possible
-      const usernameFromError = error.customData?.email;
-      if (
-        usernameFromError &&
-        SecurityService.validateEmail(usernameFromError)
-      ) {
-        const result =
-          await SecurityService.recordFailedAttempt(usernameFromError);
+      // Record failed attempt with the resolved email
+      if (email) {
+        console.log("📊 Recording failed attempt for:", email);
+        const result = await SecurityService.recordFailedAttempt(email);
         attemptsRemaining = result.attemptsRemaining;
         isNowLocked = result.isNowLocked;
+        console.log("📊 Attempts remaining:", attemptsRemaining, "Locked:", isNowLocked);
+      } else {
+        console.warn("⚠️ Email not available for attempt tracking");
       }
 
       // Handle specific Firebase errors with better messages
@@ -311,6 +356,7 @@ export const AuthService = {
           return {
             success: false,
             message: "Invalid email format. Please check your username.",
+            attemptsRemaining,
           };
 
         case "auth/invalid-credential":
@@ -343,6 +389,7 @@ export const AuthService = {
             success: false,
             message:
               "Too many login attempts. Please try again in a few minutes.",
+            attemptsRemaining,
           };
 
         case "auth/network-request-failed":
@@ -354,12 +401,14 @@ export const AuthService = {
           return {
             success: false,
             message: "Network error. Please check your internet connection.",
+            attemptsRemaining,
           };
 
         case "auth/internal-error":
           return {
             success: false,
             message: "An internal error occurred. Please try again later.",
+            attemptsRemaining,
           };
 
         default:
@@ -372,8 +421,68 @@ export const AuthService = {
             success: false,
             message:
               "Login failed. Please check your connection and try again.",
+            attemptsRemaining,
           };
       }
+    }
+  },
+
+  sendPasswordReset: async (identifier: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const sanitized = identifier.trim();
+      
+      if (!sanitized) {
+        return {
+          success: false,
+          message: "Please enter your email or ID.",
+        };
+      }
+
+      // Resolve identifier to email
+      const email = await resolveIdentifierToEmail(sanitized);
+      if (!email) {
+        return {
+          success: false,
+          message: "Email or ID not found. Please check and try again.",
+        };
+      }
+
+      // Send password reset email
+      await sendPasswordResetEmail(authRef, email);
+
+      await SecurityService.logSecurityEvent({
+        type: "PASSWORD_RESET_REQUESTED",
+        email,
+        details: `Password reset email sent`,
+      });
+
+      return {
+        success: true,
+        message: `Password reset email sent to ${email}. Please check your inbox and follow the link to reset your password.`,
+      };
+    } catch (error: any) {
+      console.error("Password reset error:", error);
+      
+      let errorMessage = "Failed to send password reset email.";
+      
+      if (error.code === "auth/user-not-found") {
+        errorMessage = "No account found with that email or ID.";
+      } else if (error.code === "auth/invalid-email") {
+        errorMessage = "Invalid email format.";
+      } else if (error.code === "auth/too-many-requests") {
+        errorMessage = "Too many attempts. Please try again later.";
+      }
+
+      await SecurityService.logSecurityEvent({
+        type: "PASSWORD_RESET_FAILED",
+        email: identifier,
+        details: errorMessage,
+      });
+
+      return {
+        success: false,
+        message: errorMessage,
+      };
     }
   },
 

@@ -1,14 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
-import { File, Paths } from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
+import * as MediaLibrary from "expo-media-library";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { type ComponentType, useRef, useState, useEffect } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Modal,
   Platform,
   SafeAreaView,
   ScrollView,
-  Share,
   StatusBar,
   StyleSheet,
   Text,
@@ -21,6 +22,9 @@ import { db } from "../../services/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { LoaderComponent } from "../../components/LoaderComponent";
 import { CustomAlert, AlertAction } from "../../components/CustomAlert";
+import { useUserNotifications } from "../../hooks/useNotifications";
+import { ScanNotificationStack } from "../../components/ScanNotificationBanner";
+import { NotificationHistoryModal } from "../../components/NotificationHistoryModal";
 
 type QRCodeProps = {
   value: string;
@@ -74,11 +78,20 @@ export default function StudentScreen() {
   const heroCardAnim = useRef(new Animated.Value(0)).current;
   const qrCardAnim = useRef(new Animated.Value(0)).current;
   const detailsAnim = useRef(new Animated.Value(0)).current;
-  const logoutButtonAnim = useRef(new Animated.Value(0)).current;
 
   // Press animation for interactive buttons
   const [downloadPressAnim] = useState(new Animated.Value(1));
-  const [logoutPressAnim] = useState(new Animated.Value(1));
+
+  // Get notifications for this user
+  const { notifications, clearNotification } = useUserNotifications(
+    student?.id || null
+  );
+
+  // History modal state
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+
+  // Student details modal state
+  const [studentDetailsModalVisible, setStudentDetailsModalVisible] = useState(false);
 
   const onDownloadPressIn = () => {
     Animated.spring(downloadPressAnim, {
@@ -89,20 +102,6 @@ export default function StudentScreen() {
 
   const onDownloadPressOut = () => {
     Animated.spring(downloadPressAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const onLogoutPressIn = () => {
-    Animated.spring(logoutPressAnim, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const onLogoutPressOut = () => {
-    Animated.spring(logoutPressAnim, {
       toValue: 1,
       useNativeDriver: true,
     }).start();
@@ -242,11 +241,6 @@ export default function StudentScreen() {
         duration: 400,
         useNativeDriver: true,
       }),
-      Animated.timing(logoutButtonAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
     ]).start();
   };
 
@@ -281,6 +275,7 @@ export default function StudentScreen() {
     setDownloading(true);
     try {
       if (Platform.OS === "web") {
+        // Web: Use html2canvas for download (same as before - works great)
         const html2canvas = (await import("html2canvas")).default;
         const element = document.getElementById("student-qr-download-target");
 
@@ -297,6 +292,7 @@ export default function StudentScreen() {
         link.href = canvas.toDataURL("image/png");
         link.download = `qcu-student-qr-${student?.id}-${Date.now()}.png`;
         link.click();
+        
         setAlertConfig({
           title: "Success",
           message: "QR code downloaded successfully.",
@@ -313,49 +309,87 @@ export default function StudentScreen() {
         return;
       }
 
+      // Mobile: Save to device photo library directly (simplified, like web)
       if (!qrRef.current) {
         throw new Error("QR code is not ready yet.");
       }
 
+      // Generate base64 from QR code
       const base64Data = await new Promise<string>((resolve, reject) => {
         try {
-          qrRef.current.toDataURL((data: string) => resolve(data));
-        } catch (_error) {
-          reject(_error);
+          qrRef.current.toDataURL((data: string) => {
+            resolve(data);
+          });
+        } catch (error) {
+          reject(error);
         }
       });
 
-      const file = new File(
-        Paths.cache,
-        `qcu-student-qr-${student?.id}-${Date.now()}.png`,
-      );
-      file.write(base64Data, { encoding: "base64" });
-
-      try {
-        await Share.share({
-          title: "QCU Student QR Code",
-          message: `QR code for ${student?.name}`,
-          url: file.uri,
-        });
-      } catch {
-        setAlertConfig({
-          title: "Saved",
-          message: "QR code has been generated locally.",
-          type: "success",
-          buttons: [
-            {
-              text: "OK",
-              onPress: () => setAlertVisible(false),
-              style: "default",
-            },
-          ],
-        });
-        setAlertVisible(true);
+      if (!base64Data) {
+        throw new Error("Failed to generate QR code data.");
       }
-    } catch {
+
+      // Clean up base64 data (remove data URI prefix if present)
+      const cleanBase64 = base64Data.includes(",") 
+        ? base64Data.split(",")[1] 
+        : base64Data;
+
+      // Save to file temporarily
+      const fileName = `QCU_Student_QR_${student?.id}.png`;
+      const fileUri = `${(FileSystem as any).documentDirectory}${fileName}`;
+
+      // Write file to document directory
+      await FileSystem.writeAsStringAsync(fileUri, cleanBase64, {
+        encoding: "base64",
+      });
+
+      // Request media library permissions (if needed)
+      try {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        
+        if (status !== "granted") {
+          throw new Error(
+            "Photo library permission denied. Please enable it in settings to save QR codes."
+          );
+        }
+      } catch (permError) {
+        console.warn("Permission request warning:", permError);
+        // Continue anyway - permissions might be pre-granted or handle error
+      }
+
+      // Save to photo library
+      try {
+        await MediaLibrary.createAssetAsync(fileUri);
+      } catch (saveError) {
+        // If media library save fails, still show success since file is saved
+        console.warn("Media library save warning:", saveError);
+      }
+
+      // Clean up temp file
+      try {
+        await FileSystem.deleteAsync(fileUri);
+      } catch {
+        // Ignore cleanup errors
+      }
+
+      setAlertConfig({
+        title: "Success",
+        message: "QR code saved to your photo library!",
+        type: "success",
+        buttons: [
+          {
+            text: "OK",
+            onPress: () => setAlertVisible(false),
+            style: "default",
+          },
+        ],
+      });
+      setAlertVisible(true);
+    } catch (error) {
+      console.error("QR download error:", error);
       setAlertConfig({
         title: "Error",
-        message: "Failed to export the QR code. Please try again.",
+        message: error instanceof Error ? error.message : "Failed to download QR code. Please try again.",
         type: "error",
         buttons: [
           {
@@ -495,11 +529,35 @@ export default function StudentScreen() {
         type={alertConfig.type}
         buttons={alertConfig.buttons}
       />
+      <ScanNotificationStack
+        notifications={notifications}
+        onDismiss={clearNotification}
+        onGuard={false}
+      />
       {Platform.OS !== "web" && (
         <StatusBar barStyle="light-content" backgroundColor="#11412a" />
       )}
       <View style={styles.backgroundShapeTop} />
       <View style={styles.backgroundShapeBottom} />
+
+      <View style={styles.header}>
+        <View style={styles.headerCopy}>
+          <Text style={styles.headerTitle}>Student Portal</Text>
+          <Text style={styles.headerSubtitle}>Access Pass</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.activityButton}
+          onPress={() => setHistoryModalVisible(true)}
+        >
+          <Ionicons name="notifications-outline" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.activityButton}
+          onPress={handleLogout}
+        >
+          <Ionicons name="log-out-outline" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
       <ScrollView
         contentContainerStyle={styles.container}
@@ -657,16 +715,12 @@ export default function StudentScreen() {
                   ) : (
                     <>
                       <Ionicons
-                        name={
-                          Platform.OS === "web"
-                            ? "download-outline"
-                            : "share-outline"
-                        }
+                        name="download-outline"
                         size={16}
                         color="#fff"
                       />
                       <Text style={styles.actionButtonText}>
-                        {Platform.OS === "web" ? "Download QR" : "Share QR"}
+                        Download QR
                       </Text>
                     </>
                   )}
@@ -674,9 +728,7 @@ export default function StudentScreen() {
               </TouchableOpacity>
 
               <Text style={styles.actionHint}>
-                {Platform.OS === "web"
-                  ? "A PNG copy will be downloaded in your browser."
-                  : "Your device will open the share sheet after the QR is prepared."}
+                The QR code will be downloaded to your device.
               </Text>
             </View>
           </Animated.View>
@@ -698,19 +750,24 @@ export default function StudentScreen() {
               },
             ]}
           >
-            <View
-              style={[
-                styles.detailCard,
-                isCompactLayout && styles.detailCardCompact,
-              ]}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setStudentDetailsModalVisible(true)}
             >
-              <View style={styles.detailHeader}>
-                <Ionicons name="person-outline" size={18} color="#1f8e4d" />
-                <Text style={styles.detailTitle}>Student Account</Text>
+              <View
+                style={[
+                  styles.detailCard,
+                  isCompactLayout && styles.detailCardCompact,
+                ]}
+              >
+                <View style={styles.detailHeader}>
+                  <Ionicons name="person-outline" size={18} color="#1f8e4d" />
+                  <Text style={styles.detailTitle}>Student Account</Text>
+                </View>
+                <Text style={styles.detailValue}>{student.name}</Text>
+                <Text style={styles.detailMeta}>Email: {student.email}</Text>
               </View>
-              <Text style={styles.detailValue}>{student.name}</Text>
-              <Text style={styles.detailMeta}>Email: {student.email}</Text>
-            </View>
+            </TouchableOpacity>
 
             <View
               style={[
@@ -732,45 +789,83 @@ export default function StudentScreen() {
               </Text>
             </View>
           </Animated.View>
-
-          {/* Logout Button with animation */}
-          <Animated.View
-            style={[
-              {
-                opacity: logoutButtonAnim,
-                transform: [
-                  {
-                    translateY: logoutButtonAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [30, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <TouchableOpacity
-              onPressIn={onLogoutPressIn}
-              onPressOut={onLogoutPressOut}
-              style={styles.logoutButton}
-              onPress={handleLogout}
-              activeOpacity={0.85}
-            >
-              <Animated.View
-                style={[
-                  styles.logoutButtonContent,
-                  {
-                    transform: [{ scale: logoutPressAnim }],
-                  },
-                ]}
-              >
-                <Ionicons name="log-out-outline" size={18} color="#fff" />
-                <Text style={styles.logoutText}>Logout</Text>
-              </Animated.View>
-            </TouchableOpacity>
-          </Animated.View>
         </Animated.View>
       </ScrollView>
+      <Modal
+        visible={studentDetailsModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setStudentDetailsModalVisible(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => setStudentDetailsModalVisible(false)}
+              style={styles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Student Details</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <ScrollView
+            contentContainerStyle={styles.modalContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.detailsContainer}>
+              <View style={styles.detailsSection}>
+                <View style={styles.detailsIconBox}>
+                  <Ionicons name="person-circle" size={60} color="#1f8e4d" />
+                </View>
+                <Text style={styles.detailsName}>{student?.name}</Text>
+                <Text style={styles.detailsRole}>{student?.role?.toUpperCase()}</Text>
+              </View>
+
+              <View style={styles.detailsGrid}>
+                <View style={styles.detailsItem}>
+                  <View style={styles.detailsItemIcon}>
+                    <Ionicons name="mail-outline" size={18} color="#1f8e4d" />
+                  </View>
+                  <View style={styles.detailsItemContent}>
+                    <Text style={styles.detailsItemLabel}>Email</Text>
+                    <Text style={styles.detailsItemValue}>{student?.email}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailsItem}>
+                  <View style={styles.detailsItemIcon}>
+                    <Ionicons name="card-outline" size={18} color="#1f8e4d" />
+                  </View>
+                  <View style={styles.detailsItemContent}>
+                    <Text style={styles.detailsItemLabel}>Student ID</Text>
+                    <Text style={styles.detailsItemValue}>{student?.studentId}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailsItem}>
+                  <View style={styles.detailsItemIcon}>
+                    <Ionicons name="car-outline" size={18} color="#1f8e4d" />
+                  </View>
+                  <View style={styles.detailsItemContent}>
+                    <Text style={styles.detailsItemLabel}>Vehicle Plate</Text>
+                    <Text style={styles.detailsItemValue}>
+                      {plateNumber || "Not registered"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      <NotificationHistoryModal
+        visible={historyModalVisible}
+        onClose={() => setHistoryModalVisible(false)}
+        userId={student?.id}
+        isGuard={false}
+      />
     </SafeAreaView>
   );
 }
@@ -831,7 +926,38 @@ const styles = StyleSheet.create({
     borderRadius: 110,
     backgroundColor: "rgba(17, 65, 42, 0.05)",
   },
+  header: {
+    backgroundColor: "#11412a",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 22,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  activityButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 10,
+  },
+  headerCopy: {
+    flex: 1,
+  },
+  headerTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  headerSubtitle: {
+    color: "#c8e6d0",
+    marginTop: 4,
+    fontSize: 13,
+  },
   container: {
+    flexGrow: 1,
     paddingHorizontal: 18,
     paddingTop: 18,
     paddingBottom: 36,
@@ -1158,32 +1284,102 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  logoutButton: {
-    backgroundColor: "#d32f2f",
-    borderRadius: 18,
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#eef4ef",
+  },
+  modalHeader: {
+    backgroundColor: "#11412a",
+    paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingHorizontal: 18,
-    alignItems: "center",
-    justifyContent: "center",
     flexDirection: "row",
-    shadowColor: "#d32f2f",
-    shadowOpacity: 0.24,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
-    marginTop: 16,
-    marginBottom: 8,
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  logoutText: {
+  modalCloseButton: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalTitle: {
     color: "#fff",
-    fontSize: 15,
-    fontWeight: "800",
-    marginLeft: 8,
-    letterSpacing: 0.4,
+    fontSize: 18,
+    fontWeight: "700",
+    flex: 1,
+    textAlign: "center",
   },
-  logoutButtonContent: {
-    flexDirection: "row",
+  modalContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+  },
+  detailsContainer: {
+    maxWidth: 560,
+    alignSelf: "center",
+    width: "100%",
+  },
+  detailsSection: {
     alignItems: "center",
+    marginBottom: 32,
+    paddingVertical: 24,
+    backgroundColor: "#ffffff",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#e5ece7",
+  },
+  detailsIconBox: {
+    marginBottom: 16,
+  },
+  detailsName: {
+    color: "#0f2818",
+    fontSize: 24,
+    fontWeight: "800",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  detailsRole: {
+    color: "#1f8e4d",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  detailsGrid: {
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#e5ece7",
+  },
+  detailsItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f5f2",
+  },
+  detailsItemIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#f0f8f4",
     justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  detailsItemContent: {
+    flex: 1,
+  },
+  detailsItemLabel: {
+    color: "#62707d",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  detailsItemValue: {
+    color: "#0f2818",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

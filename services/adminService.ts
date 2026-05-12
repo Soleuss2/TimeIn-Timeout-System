@@ -61,7 +61,7 @@ export interface AuditLog {
   plate: string;
   type: "time_in" | "time_out";
   name: string;
-  role: "student" | "guard" | "visitor";
+  role: "student" | "faculty" | "staff" | "guard" | "guest" | "visitor";
   time: string;
   timestamp: Date;
   guardRef?: string;
@@ -958,7 +958,8 @@ export const AdminService = {
 
   /**
    * Fetch audit logs from TimeLogs collection for a specific date range
-   * Properly handles Firestore references and date filtering
+   * Reads directly from the TimeLogs documents which store:
+   * id, name, role, plateNumber, method, dateString, timeIn, timeOut, status
    */
   fetchAuditLogs: async (
     dateFrom?: Date,
@@ -968,83 +969,42 @@ export const AdminService = {
     try {
       const timeLogsRef = collection(db, "TimeLogs");
 
-      // Build date range queries if dates provided
+      // Build query constraints based on date range
       let constraints: any[] = [];
 
       if (dateFrom) {
-        constraints.push(where("time_in", ">=", dateFrom));
+        constraints.push(where("timeIn", ">=", dateFrom));
       }
 
       if (dateTo) {
-        // Add 1 day to include all events on the "to" date
         const endDate = new Date(dateTo);
         endDate.setDate(endDate.getDate() + 1);
-        constraints.push(where("time_in", "<", endDate));
+        constraints.push(where("timeIn", "<", endDate));
       }
 
-      constraints.push(orderBy("time_in", "desc"));
+      constraints.push(orderBy("timeIn", "desc"));
 
       const q = query(timeLogsRef, ...constraints);
       const logsSnapshot = await getDocs(q);
 
       const allEvents: AuditLog[] = [];
-      const userCache = new Map<
-        string,
-        { name: string; role: "student" | "guard" }
-      >();
 
       for (const logDoc of logsSnapshot.docs) {
         const data = logDoc.data();
         const plateNumber = data.plateNumber || "N/A";
         const vehicleType = data.vehicleType || "car";
-        const status = data.status || "pending";
+        const docName = data.name || "Unknown";
+        const docRole = data.role || "visitor";
+        const docStatus = data.status || "IN";
 
-        // Validate required fields
-        if (!data.time_in) continue;
+        // Use the original role directly from the document
+        const role = docRole as AuditLog["role"];
 
-        // Determine who made the entry (student or guard)
-        let name = "Unknown";
-        let role: "student" | "guard" | "visitor" = "visitor";
-        const userRefId =
-          extractRefId(data.studentRef) || extractRefId(data.guardRef);
-        const isStudent = !!data.studentRef;
-
-        // Try to get cached user data first
-        if (userRefId && userCache.has(userRefId)) {
-          const cached = userCache.get(userRefId)!;
-          name = cached.name;
-          role = cached.role;
-        } else if (userRefId) {
-          try {
-            const userCollection = isStudent ? "students" : "guards";
-            const userDoc = await getDoc(doc(db, userCollection, userRefId));
-
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              role = isStudent ? "student" : "guard";
-
-              // Handle different naming conventions
-              const firstName = userData.firstName || userData.FirstName || "";
-              const lastName = userData.lastName || userData.lastNameName || "";
-              name = `${firstName} ${lastName}`.trim() || "Unknown";
-
-              // Cache the result
-              userCache.set(userRefId, { name, role });
-            }
-          } catch (e) {
-            console.error(
-              `Error fetching ${isStudent ? "student" : "guard"} data:`,
-              e,
-            );
-          }
-        }
-
-        // Create individual audit entries for IN and OUT if they exist
-        // Handle Time In
-        if (data.time_in) {
-          const timestamp = data.time_in.toDate
-            ? data.time_in.toDate()
-            : new Date(data.time_in);
+        // Handle Time In entry
+        if (data.timeIn) {
+          const timestamp = data.timeIn.toDate
+            ? data.timeIn.toDate()
+            : new Date(data.timeIn);
 
           const timeString = timestamp.toLocaleTimeString("en-US", {
             hour: "2-digit",
@@ -1062,22 +1022,20 @@ export const AdminService = {
             id: `${logDoc.id}_in`,
             plate: plateNumber,
             type: "time_in",
-            name,
+            name: docName,
             role,
             time: `${timeString} • ${dateString}`,
             timestamp,
-            guardRef: data.guardRef,
-            studentRef: data.studentRef,
             vehicleType,
             status: "check_in",
           });
         }
 
-        // Handle Time Out
-        if (data.time_out) {
-          const timestamp = data.time_out.toDate
-            ? data.time_out.toDate()
-            : new Date(data.time_out);
+        // Handle Time Out entry (only if timeOut exists)
+        if (data.timeOut) {
+          const timestamp = data.timeOut.toDate
+            ? data.timeOut.toDate()
+            : new Date(data.timeOut);
 
           const timeString = timestamp.toLocaleTimeString("en-US", {
             hour: "2-digit",
@@ -1095,14 +1053,12 @@ export const AdminService = {
             id: `${logDoc.id}_out`,
             plate: plateNumber,
             type: "time_out",
-            name,
+            name: docName,
             role,
             time: `${timeString} • ${dateString}`,
             timestamp,
-            guardRef: data.guardRef,
-            studentRef: data.studentRef,
             vehicleType,
-            status: status === "completed" ? "check_out" : "pending",
+            status: docStatus === "OUT" ? "check_out" : "pending",
           });
         }
       }
@@ -1140,8 +1096,8 @@ export const AdminService = {
       const timeLogsRef = collection(db, "TimeLogs");
       const q = query(
         timeLogsRef,
-        where("time_in", ">=", Timestamp.fromDate(today)),
-        where("time_in", "<", Timestamp.fromDate(tomorrow)),
+        where("timeIn", ">=", Timestamp.fromDate(today)),
+        where("timeIn", "<", Timestamp.fromDate(tomorrow)),
       );
 
       const snapshot = await getDocs(q);
@@ -1166,9 +1122,9 @@ export const AdminService = {
       const timeLogsRef = collection(db, "TimeLogs");
       const q = query(
         timeLogsRef,
-        where("time_in", ">=", Timestamp.fromDate(today)),
-        where("time_in", "<", Timestamp.fromDate(tomorrow)),
-        orderBy("time_in", "asc"),
+        where("timeIn", ">=", Timestamp.fromDate(today)),
+        where("timeIn", "<", Timestamp.fromDate(tomorrow)),
+        orderBy("timeIn", "asc"),
       );
 
       const snapshot = await getDocs(q);
@@ -1181,7 +1137,7 @@ export const AdminService = {
 
       // Count entries per hour
       snapshot.forEach((doc) => {
-        const timestamp = doc.data().time_in?.toDate();
+        const timestamp = doc.data().timeIn?.toDate();
         if (timestamp) {
           const hour = timestamp.getHours();
           hourCounts[hour]++;

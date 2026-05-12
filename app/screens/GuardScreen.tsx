@@ -18,6 +18,10 @@ import { AlertAction, CustomAlert } from "../../components/CustomAlert";
 import { LoaderComponent } from "../../components/LoaderComponent";
 import { processGuardEntry } from "../../services/guardService";
 import { AuthService } from "../../services/authService";
+import { useAuth } from "../../services/authContext";
+import { useGuardNotifications } from "../../hooks/useNotifications";
+import { ScanNotificationStack } from "../../components/ScanNotificationBanner";
+import { NotificationHistoryModal } from "../../components/NotificationHistoryModal";
 
 type ScannedPayload = {
   app?: string;
@@ -44,6 +48,7 @@ function parseScannedPayload(data: string): ScannedPayload | null {
 
 export default function GuardScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [plate, setPlate] = useState("");
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scannedData, setScannedData] = useState<string | null>(null);
@@ -51,6 +56,12 @@ export default function GuardScreen() {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Get notifications for this guard
+  const { notifications, clearNotification } = useGuardNotifications(user?.id || null);
+
+  // History modal state
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
 
   // Alert state
   const [alertVisible, setAlertVisible] = useState(false);
@@ -110,7 +121,7 @@ export default function GuardScreen() {
         role: parsed.role,
         plateNumber: parsed.plateNumber ?? undefined,
         method: "QR",
-      });
+      }, user?.id);
 
       if (result.success) {
         const actionLabel =
@@ -196,7 +207,7 @@ export default function GuardScreen() {
         plateNumber: trimmedPlate.toUpperCase(),
         method: "MANUAL",
         role: "visitor",
-      });
+      }, user?.id);
 
       if (result.success) {
         const actionLabel =
@@ -373,6 +384,11 @@ export default function GuardScreen() {
         type={alertConfig.type}
         buttons={alertConfig.buttons}
       />
+      <ScanNotificationStack
+        notifications={notifications}
+        onDismiss={clearNotification}
+        onGuard={true}
+      />
       <StatusBar barStyle="light-content" backgroundColor="#1f8e4d" />
       <View style={styles.backgroundShapeTop} />
       <View style={styles.backgroundShapeBottom} />
@@ -387,6 +403,12 @@ export default function GuardScreen() {
           onPress={() => router.push({ pathname: "/guard-activity" })}
         >
           <Ionicons name="bar-chart-outline" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.activityButton}
+          onPress={() => setHistoryModalVisible(true)}
+        >
+          <Ionicons name="notifications-outline" size={20} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.activityButton}
@@ -506,6 +528,12 @@ export default function GuardScreen() {
           </View>
         </Animated.View>
       </ScrollView>
+      <NotificationHistoryModal
+        visible={historyModalVisible}
+        onClose={() => setHistoryModalVisible(false)}
+        guardId={user?.id}
+        isGuard={true}
+      />
     </SafeAreaView>
   );
 }

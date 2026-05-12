@@ -21,7 +21,6 @@ import {
   Alert,
   Animated,
 } from "react-native";
-import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { LoaderComponent } from "../../components/LoaderComponent";
 import { CustomAlert, AlertAction } from "../../components/CustomAlert";
 import { AuthService } from "../../services/authService";
@@ -67,16 +66,7 @@ export default function AdminScreen() {
   >("students");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ── Date & Time Picker state ─────────────────────────────────────────
-  const [dateFromDate, setDateFromDate] = useState(new Date());
-  const [dateToDate, setDateToDate] = useState(new Date());
-  const [dateFromInput, setDateFromInput] = useState("Oct 24, 00:00");
-  const [dateToInput, setDateToInput] = useState("Oct 24, 23:59");
-  const [showDateFromPicker, setShowDateFromPicker] = useState(false);
-  const [showTimeFromPicker, setShowTimeFromPicker] = useState(false);
-  const [showDateToPicker, setShowDateToPicker] = useState(false);
-  const [showTimeToPicker, setShowTimeToPicker] = useState(false);
-  // ─────────────────────────────────────────────────────────────────────
+
 
   const [newAccountRole, setNewAccountRole] = useState<
     "student" | "faculty" | "staff" | "guard"
@@ -153,6 +143,16 @@ export default function AdminScreen() {
   const [vehiclesCount, setVehiclesCount] = useState(0);
   const [parkingHoursData, setParkingHoursData] = useState<any[]>([]);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  // ── Audit log filters (guard-style dropdowns) ─────────────────
+  const AUDIT_DATE_OPTIONS = ["All Date", "Today", "Yesterday"] as const;
+  const AUDIT_ENTRY_OPTIONS = ["All Entry", "Student", "Faculty", "Staff", "Guard", "Guest"] as const;
+  const AUDIT_VEHICLE_OPTIONS = ["All Vehicles", "Car", "Motorcycle", "Ebike", "Others"] as const;
+  const [auditDateFilter, setAuditDateFilter] = useState<string>("All Date");
+  const [auditEntryFilter, setAuditEntryFilter] = useState<string>("All Entry");
+  const [auditVehicleFilter, setAuditVehicleFilter] = useState<string>("All Vehicles");
+  const [auditExpandedFilter, setAuditExpandedFilter] = useState<string | null>(null);
+  const [selectedAuditLog, setSelectedAuditLog] = useState<any | null>(null);
   // ─────────────────────────────────────────────────────────────────
 
   const totalStudents = students.length;
@@ -205,93 +205,8 @@ export default function AdminScreen() {
   const fetchAnalyticsData = useCallback(async () => {
     setLoadingAnalytics(true);
     try {
-      // Parse date strings to Date objects with better handling
-      let startDate: Date | undefined;
-      let endDate: Date | undefined;
-
-      if (dateFromInput && dateToInput) {
-        try {
-          // Try multiple date formats
-          // Format 1: MM/DD/YYYY HH:MM
-          // Format 2: Oct 24, 00:00 (month day, time)
-          // Format 3: ISO format
-
-          const parseDateString = (dateStr: string): Date | null => {
-            if (!dateStr) return null;
-
-            // Try ISO format first
-            let date = new Date(dateStr);
-            if (!isNaN(date.getTime())) return date;
-
-            // Try MM/DD/YYYY HH:MM format
-            const mmddyyyyMatch = dateStr.match(
-              /(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/,
-            );
-            if (mmddyyyyMatch) {
-              const [, month, day, year, hour, minute] = mmddyyyyMatch;
-              date = new Date(
-                parseInt(year),
-                parseInt(month) - 1,
-                parseInt(day),
-                parseInt(hour),
-                parseInt(minute),
-              );
-              if (!isNaN(date.getTime())) return date;
-            }
-
-            // Try "Mon DD, HH:MM" format (e.g., "Oct 24, 00:00")
-            const monthDayMatch = dateStr.match(
-              /([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{1,2}):(\d{2})/,
-            );
-            if (monthDayMatch) {
-              const [, monthStr, day, hour, minute] = monthDayMatch;
-              const monthMap: Record<string, number> = {
-                Jan: 0,
-                Feb: 1,
-                Mar: 2,
-                Apr: 3,
-                May: 4,
-                Jun: 5,
-                Jul: 6,
-                Aug: 7,
-                Sep: 8,
-                Oct: 9,
-                Nov: 10,
-                Dec: 11,
-              };
-              const month = monthMap[monthStr];
-              if (month !== undefined) {
-                const currentYear = new Date().getFullYear();
-                date = new Date(
-                  currentYear,
-                  month,
-                  parseInt(day),
-                  parseInt(hour),
-                  parseInt(minute),
-                );
-                if (!isNaN(date.getTime())) return date;
-              }
-            }
-
-            return null;
-          };
-
-          startDate = parseDateString(dateFromInput) || undefined;
-          endDate = parseDateString(dateToInput) || undefined;
-
-          // If parsing failed, log warning but continue without date filters
-          if (!startDate || !endDate) {
-            console.warn(
-              "Failed to parse dates, fetching all logs without date filter",
-            );
-          }
-        } catch (e) {
-          console.error("Error parsing dates:", e);
-        }
-      }
-
       const [logs, count, hoursData] = await Promise.all([
-        AdminService.fetchAuditLogs(startDate, endDate),
+        AdminService.fetchAuditLogs(),
         AdminService.getTodayVehicleCount(),
         AdminService.getParkingHoursData(),
       ]);
@@ -305,7 +220,7 @@ export default function AdminScreen() {
     } finally {
       setLoadingAnalytics(false);
     }
-  }, [dateFromInput, dateToInput]);
+  }, []);
 
   // Fetch analytics data for overview and audit logs screens
   useEffect(() => {
@@ -877,180 +792,66 @@ export default function AdminScreen() {
     );
   };
 
-  // ── Date & Time Picker Handlers ────────────────────────────────────────
-  const formatDateDisplay = (date: Date, showTime: boolean = true): string => {
-    const monthNames = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    const month = monthNames[date.getMonth()];
-    const day = date.getDate();
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
 
-    if (showTime) {
-      return `${month} ${day}, ${hour}:${minute}`;
-    }
-    return `${month} ${day}`;
-  };
 
-  const handleDateFromConfirm = (date: Date) => {
-    setDateFromDate(date);
-    setDateFromInput(formatDateDisplay(date, true));
-    setShowDateFromPicker(false);
-  };
-
-  const handleTimeFromConfirm = (time: Date) => {
-    const updatedDate = new Date(dateFromDate);
-    updatedDate.setHours(time.getHours());
-    updatedDate.setMinutes(time.getMinutes());
-    setDateFromDate(updatedDate);
-    setDateFromInput(formatDateDisplay(updatedDate, true));
-    setShowTimeFromPicker(false);
-  };
-
-  const handleDateToConfirm = (date: Date) => {
-    setDateToDate(date);
-    setDateToInput(formatDateDisplay(date, true));
-    setShowDateToPicker(false);
-  };
-
-  const handleTimeToConfirm = (time: Date) => {
-    const updatedDate = new Date(dateToDate);
-    updatedDate.setHours(time.getHours());
-    updatedDate.setMinutes(time.getMinutes());
-    setDateToDate(updatedDate);
-    setDateToInput(formatDateDisplay(updatedDate, true));
-    setShowTimeToPicker(false);
-  };
-  // ─────────────────────────────────────────────────────────────────────
 
   const renderAuditLogsScreen = () => {
-    // ── ALGORITHM: filterAndSortAuditLogs ──────────────────────────────────
-    // Combines:
-    //  1. Search filter (plate, name, role)
-    //  2. Hash Set deduplication (O(1) lookups)
-    //  3. Merge Sort (stable O(n log n) sort)
-    // ───────────────────────────────────────────────────────────────────────
-    const displayedLogs = filterAndSortAuditLogs(
+    // ── ALGORITHM: filterAndSortAuditLogs + guard-style dropdown filters ──
+    let filteredLogs = filterAndSortAuditLogs(
       auditLogs,
       searchQuery,
       "timestamp",
-      "desc", // Most recent first
+      "desc",
     );
+
+    // Apply date filter
+    if (auditDateFilter !== "All Date") {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterdayStart = new Date(todayStart);
+      yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+      filteredLogs = filteredLogs.filter((log: any) => {
+        const logTime = log.timestamp?.getTime?.() || 0;
+        if (auditDateFilter === "Today") return logTime >= todayStart.getTime();
+        if (auditDateFilter === "Yesterday")
+          return logTime >= yesterdayStart.getTime() && logTime < todayStart.getTime();
+        return true;
+      });
+    }
+
+    // Apply entry type filter
+    if (auditEntryFilter !== "All Entry") {
+      const targetRole = auditEntryFilter.toLowerCase();
+      filteredLogs = filteredLogs.filter((log: any) => {
+        const logRole = (log.role || "").toLowerCase();
+        // "guest" in the dropdown matches both "guest" and "visitor" roles in the DB
+        if (targetRole === "guest") return logRole === "visitor" || logRole === "guest";
+        // "student" in the dropdown matches the "student" role in the audit log
+        // (faculty/staff are mapped to "student" in fetchAuditLogs, but we check raw data too)
+        return logRole === targetRole;
+      });
+    }
+
+    // Apply vehicle type filter
+    if (auditVehicleFilter !== "All Vehicles") {
+      const knownTypes = ["car", "motorcycle", "ebike"];
+      filteredLogs = filteredLogs.filter((log: any) => {
+        const vType = (log.vehicleType || "").toLowerCase();
+        if (auditVehicleFilter === "Others") {
+          return !knownTypes.includes(vType);
+        }
+        return vType === auditVehicleFilter.toLowerCase();
+      });
+    }
+
+    const displayedLogs = filteredLogs;
 
     return (
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.screenTitle}>Master Audit Logs</Text>
         <Text style={styles.screenSubtitle}>Campus-wide vehicle activity</Text>
 
-        <View style={styles.dateRangeContainer}>
-          <Text style={styles.dateLabel}>DATE & TIME RANGE QUERY</Text>
-
-          <View style={styles.datePickersRow}>
-            {/* From Date & Time Picker */}
-            <View style={styles.datePickerGroup}>
-              <Text style={styles.datePickerLabel}>From</Text>
-              <TouchableOpacity
-                style={styles.datePickerButton}
-                onPress={() => setShowDateFromPicker(true)}
-              >
-                <Ionicons name="calendar" size={16} color="#1f8e4d" />
-                <Text style={styles.datePickerButtonText}>
-                  {formatDateDisplay(dateFromDate, false)}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.timePickerButton}
-                onPress={() => setShowTimeFromPicker(true)}
-              >
-                <Ionicons name="time" size={16} color="#1f8e4d" />
-                <Text style={styles.timePickerButtonText}>
-                  {String(dateFromDate.getHours()).padStart(2, "0")}:
-                  {String(dateFromDate.getMinutes()).padStart(2, "0")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.dateSeparator}>→</Text>
-
-            {/* To Date & Time Picker */}
-            <View style={styles.datePickerGroup}>
-              <Text style={styles.datePickerLabel}>To</Text>
-              <TouchableOpacity
-                style={styles.datePickerButton}
-                onPress={() => setShowDateToPicker(true)}
-              >
-                <Ionicons name="calendar" size={16} color="#1f8e4d" />
-                <Text style={styles.datePickerButtonText}>
-                  {formatDateDisplay(dateToDate, false)}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.timePickerButton}
-                onPress={() => setShowTimeToPicker(true)}
-              >
-                <Ionicons name="time" size={16} color="#1f8e4d" />
-                <Text style={styles.timePickerButtonText}>
-                  {String(dateToDate.getHours()).padStart(2, "0")}:
-                  {String(dateToDate.getMinutes()).padStart(2, "0")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.applyDateButton}
-            onPress={() => fetchAnalyticsData()}
-          >
-            <Ionicons name="checkmark-circle" size={18} color="#fff" />
-            <Text style={styles.applyDateButtonText}>Apply Filter</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Date & Time Pickers - Hidden DateTimePickerModal components */}
-        <DateTimePickerModal
-          isVisible={showDateFromPicker}
-          mode="date"
-          onConfirm={handleDateFromConfirm}
-          onCancel={() => setShowDateFromPicker(false)}
-          maximumDate={dateToDate}
-          display="spinner"
-        />
-        <DateTimePickerModal
-          isVisible={showTimeFromPicker}
-          mode="time"
-          onConfirm={handleTimeFromConfirm}
-          onCancel={() => setShowTimeFromPicker(false)}
-          display="spinner"
-          is24Hour={true}
-        />
-        <DateTimePickerModal
-          isVisible={showDateToPicker}
-          mode="date"
-          onConfirm={handleDateToConfirm}
-          onCancel={() => setShowDateToPicker(false)}
-          minimumDate={dateFromDate}
-          display="spinner"
-        />
-        <DateTimePickerModal
-          isVisible={showTimeToPicker}
-          mode="time"
-          onConfirm={handleTimeToConfirm}
-          onCancel={() => setShowTimeToPicker(false)}
-          display="spinner"
-          is24Hour={true}
-        />
 
         <View style={styles.searchBox}>
           <Ionicons
@@ -1066,6 +867,162 @@ export default function AdminScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+        </View>
+
+        {/* ── Guard-style dropdown filters ── */}
+        <View style={styles.auditFilterRow}>
+          {/* Date filter */}
+          <View style={styles.auditFilterCol}>
+            <TouchableOpacity
+              style={[
+                styles.auditFilterBtn,
+                auditDateFilter !== "All Date" && styles.auditFilterBtnActive,
+              ]}
+              onPress={() =>
+                setAuditExpandedFilter(auditExpandedFilter === "date" ? null : "date")
+              }
+            >
+              <Ionicons name="calendar" size={14} color={auditDateFilter !== "All Date" ? "#1f8e4d" : "#6b7a8d"} />
+              <Text
+                style={[
+                  styles.auditFilterBtnText,
+                  auditDateFilter !== "All Date" && styles.auditFilterBtnTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                {auditDateFilter}
+              </Text>
+              <Ionicons name="chevron-down" size={12} color="#8f9ba7" />
+            </TouchableOpacity>
+            {auditExpandedFilter === "date" && (
+              <View style={styles.auditDropdown}>
+                {AUDIT_DATE_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[
+                      styles.auditDropdownItem,
+                      auditDateFilter === opt && styles.auditDropdownItemActive,
+                    ]}
+                    onPress={() => {
+                      setAuditDateFilter(opt);
+                      setAuditExpandedFilter(null);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.auditDropdownText,
+                        auditDateFilter === opt && styles.auditDropdownTextActive,
+                      ]}
+                    >
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Entry type filter */}
+          <View style={styles.auditFilterCol}>
+            <TouchableOpacity
+              style={[
+                styles.auditFilterBtn,
+                auditEntryFilter !== "All Entry" && styles.auditFilterBtnActive,
+              ]}
+              onPress={() =>
+                setAuditExpandedFilter(auditExpandedFilter === "entry" ? null : "entry")
+              }
+            >
+              <Ionicons name="person" size={14} color={auditEntryFilter !== "All Entry" ? "#1f8e4d" : "#6b7a8d"} />
+              <Text
+                style={[
+                  styles.auditFilterBtnText,
+                  auditEntryFilter !== "All Entry" && styles.auditFilterBtnTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                {auditEntryFilter}
+              </Text>
+              <Ionicons name="chevron-down" size={12} color="#8f9ba7" />
+            </TouchableOpacity>
+            {auditExpandedFilter === "entry" && (
+              <View style={styles.auditDropdown}>
+                {AUDIT_ENTRY_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[
+                      styles.auditDropdownItem,
+                      auditEntryFilter === opt && styles.auditDropdownItemActive,
+                    ]}
+                    onPress={() => {
+                      setAuditEntryFilter(opt);
+                      setAuditExpandedFilter(null);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.auditDropdownText,
+                        auditEntryFilter === opt && styles.auditDropdownTextActive,
+                      ]}
+                    >
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Vehicle filter */}
+          <View style={styles.auditFilterCol}>
+            <TouchableOpacity
+              style={[
+                styles.auditFilterBtn,
+                auditVehicleFilter !== "All Vehicles" && styles.auditFilterBtnActive,
+              ]}
+              onPress={() =>
+                setAuditExpandedFilter(auditExpandedFilter === "vehicle" ? null : "vehicle")
+              }
+            >
+              <Ionicons name="car" size={14} color={auditVehicleFilter !== "All Vehicles" ? "#1f8e4d" : "#6b7a8d"} />
+              <Text
+                style={[
+                  styles.auditFilterBtnText,
+                  auditVehicleFilter !== "All Vehicles" && styles.auditFilterBtnTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                {auditVehicleFilter}
+              </Text>
+              <Ionicons name="chevron-down" size={12} color="#8f9ba7" />
+            </TouchableOpacity>
+            {auditExpandedFilter === "vehicle" && (
+              <View style={styles.auditDropdown}>
+                {AUDIT_VEHICLE_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[
+                      styles.auditDropdownItem,
+                      auditVehicleFilter === opt && styles.auditDropdownItemActive,
+                    ]}
+                    onPress={() => {
+                      setAuditVehicleFilter(opt);
+                      setAuditExpandedFilter(null);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.auditDropdownText,
+                        auditVehicleFilter === opt && styles.auditDropdownTextActive,
+                      ]}
+                    >
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
 
         {errorMessage && (
@@ -1086,7 +1043,12 @@ export default function AdminScreen() {
                 Total entries: {displayedLogs.length}
               </Text>
               {displayedLogs.map((log) => (
-                <View key={log.id} style={styles.auditLogCard}>
+                <TouchableOpacity
+                  key={log.id}
+                  style={styles.auditLogCard}
+                  activeOpacity={0.7}
+                  onPress={() => setSelectedAuditLog(log)}
+                >
                   <View style={styles.auditLogIcon}>
                     <Ionicons
                       name={
@@ -1138,7 +1100,8 @@ export default function AdminScreen() {
                     </View>
                     <Text style={styles.auditLogTime}>{log.time}</Text>
                   </View>
-                </View>
+                  <Ionicons name="chevron-forward" size={16} color="#c0c9d0" style={{ alignSelf: "center" }} />
+                </TouchableOpacity>
               ))}
             </>
           ) : (
@@ -1153,6 +1116,170 @@ export default function AdminScreen() {
             </View>
           )}
         </View>
+
+        {/* ── Audit Log Detail Modal ── */}
+        <Modal
+          visible={!!selectedAuditLog}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSelectedAuditLog(null)}
+        >
+          <View style={styles.detailModalOverlay}>
+            <View style={styles.detailModalCard}>
+              {selectedAuditLog && (
+                <>
+                  {/* Header */}
+                  <View style={styles.detailModalHeader}>
+                    <View
+                      style={[
+                        styles.detailModalBadge,
+                        {
+                          backgroundColor:
+                            selectedAuditLog.type === "time_in"
+                              ? "#dcfce7"
+                              : "#fee2e2",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={
+                          selectedAuditLog.type === "time_in"
+                            ? "arrow-down-circle"
+                            : "arrow-up-circle"
+                        }
+                        size={28}
+                        color={
+                          selectedAuditLog.type === "time_in"
+                            ? "#16a34a"
+                            : "#dc2626"
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.detailModalBadgeText,
+                          {
+                            color:
+                              selectedAuditLog.type === "time_in"
+                                ? "#166534"
+                                : "#991b1b",
+                          },
+                        ]}
+                      >
+                        {selectedAuditLog.type === "time_in"
+                          ? "TIME IN"
+                          : "TIME OUT"}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setSelectedAuditLog(null)}
+                      style={styles.detailModalClose}
+                    >
+                      <Ionicons name="close" size={22} color="#6b7a8d" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Name */}
+                  <Text style={styles.detailModalName}>
+                    {selectedAuditLog.name}
+                  </Text>
+
+                  {/* Info Rows */}
+                  <View style={styles.detailModalDivider} />
+
+                  <View style={styles.detailModalRow}>
+                    <View style={styles.detailModalRowIcon}>
+                      <Ionicons name="person" size={16} color="#1f8e4d" />
+                    </View>
+                    <Text style={styles.detailModalLabel}>Role</Text>
+                    <Text style={styles.detailModalValue}>
+                      {selectedAuditLog.role.charAt(0).toUpperCase() +
+                        selectedAuditLog.role.slice(1)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailModalRow}>
+                    <View style={styles.detailModalRowIcon}>
+                      <Ionicons name="card" size={16} color="#1f8e4d" />
+                    </View>
+                    <Text style={styles.detailModalLabel}>Plate Number</Text>
+                    <Text style={styles.detailModalValue}>
+                      {selectedAuditLog.plate}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailModalRow}>
+                    <View style={styles.detailModalRowIcon}>
+                      <Ionicons name="car" size={16} color="#1f8e4d" />
+                    </View>
+                    <Text style={styles.detailModalLabel}>Vehicle Type</Text>
+                    <Text style={styles.detailModalValue}>
+                      {(selectedAuditLog.vehicleType || "N/A")
+                        .charAt(0)
+                        .toUpperCase() +
+                        (selectedAuditLog.vehicleType || "N/A").slice(1)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailModalRow}>
+                    <View style={styles.detailModalRowIcon}>
+                      <Ionicons name="time" size={16} color="#1f8e4d" />
+                    </View>
+                    <Text style={styles.detailModalLabel}>Timestamp</Text>
+                    <Text style={styles.detailModalValue}>
+                      {selectedAuditLog.time}
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailModalRow}>
+                    <View style={styles.detailModalRowIcon}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color="#1f8e4d"
+                      />
+                    </View>
+                    <Text style={styles.detailModalLabel}>Status</Text>
+                    <View
+                      style={[
+                        styles.detailModalStatusPill,
+                        {
+                          backgroundColor:
+                            selectedAuditLog.type === "time_in"
+                              ? "#dcfce7"
+                              : "#fee2e2",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: "700",
+                          color:
+                            selectedAuditLog.type === "time_in"
+                              ? "#166534"
+                              : "#991b1b",
+                        }}
+                      >
+                        {selectedAuditLog.type === "time_in"
+                          ? "CHECKED IN"
+                          : "CHECKED OUT"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailModalDivider} />
+
+                  <TouchableOpacity
+                    style={styles.detailModalDismiss}
+                    onPress={() => setSelectedAuditLog(null)}
+                  >
+                    <Text style={styles.detailModalDismissText}>Close</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     );
   };
@@ -2689,5 +2816,176 @@ const styles = StyleSheet.create({
   },
   createButtonDisabled: {
     opacity: 0.6,
+  },
+
+  // ── Audit log filter styles (guard-style dropdowns) ──
+  auditFilterRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+    zIndex: 10,
+  },
+  auditFilterCol: {
+    flex: 1,
+    position: "relative" as const,
+  },
+  auditFilterBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  auditFilterBtnActive: {
+    borderColor: "#1f8e4d",
+    backgroundColor: "#f0fdf4",
+  },
+  auditFilterBtnText: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+    color: "#6b7a8d",
+  },
+  auditFilterBtnTextActive: {
+    color: "#1f8e4d",
+  },
+  auditDropdown: {
+    position: "absolute" as const,
+    top: 42,
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+    zIndex: 100,
+    overflow: "hidden" as const,
+  },
+  auditDropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  auditDropdownItemActive: {
+    backgroundColor: "#f0fdf4",
+  },
+  auditDropdownText: {
+    fontSize: 12,
+    fontWeight: "600" as const,
+    color: "#4b5563",
+  },
+  auditDropdownTextActive: {
+    color: "#1f8e4d",
+    fontWeight: "700" as const,
+  },
+
+  // ── Audit log detail modal styles ──
+  detailModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  detailModalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    width: "100%",
+    maxWidth: 400,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  detailModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  detailModalBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  detailModalBadgeText: {
+    fontSize: 14,
+    fontWeight: "800" as const,
+    letterSpacing: 0.5,
+  },
+  detailModalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#f3f4f6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  detailModalName: {
+    fontSize: 20,
+    fontWeight: "800" as const,
+    color: "#1a1a2e",
+    marginBottom: 16,
+  },
+  detailModalDivider: {
+    height: 1,
+    backgroundColor: "#f0f0f5",
+    marginVertical: 12,
+  },
+  detailModalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  detailModalRowIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "#f0fdf4",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  detailModalLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600" as const,
+    color: "#6b7a8d",
+  },
+  detailModalValue: {
+    fontSize: 13,
+    fontWeight: "700" as const,
+    color: "#1a1a2e",
+  },
+  detailModalStatusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  detailModalDismiss: {
+    backgroundColor: "#1f8e4d",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  detailModalDismissText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700" as const,
   },
 });
