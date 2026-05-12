@@ -94,7 +94,8 @@ export const AuthService = {
 
       // Get user profile from Firestore - try all collections
       let userDoc: any = null;
-      let userRole: "student" | "faculty" | "staff" | "guard" | "admin" | null = null;
+      let userRole: "student" | "faculty" | "staff" | "guard" | "admin" | null =
+        null;
 
       // Try students collection
       let docRef = doc(db, "students", firebaseUser.uid);
@@ -404,7 +405,8 @@ export const AuthService = {
       await firebaseUser.reload();
 
       let userDoc: any = null;
-      let userRole: "student" | "faculty" | "staff" | "guard" | "admin" | null = null;
+      let userRole: "student" | "faculty" | "staff" | "guard" | "admin" | null =
+        null;
 
       // Try students collection
       let docRef = doc(db, "students", firebaseUser.uid);

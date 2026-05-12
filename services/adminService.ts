@@ -967,43 +967,46 @@ export const AdminService = {
   ): Promise<AuditLog[]> => {
     try {
       const timeLogsRef = collection(db, "TimeLogs");
-      
+
       // Build date range queries if dates provided
       let constraints: any[] = [];
-      
+
       if (dateFrom) {
         constraints.push(where("time_in", ">=", dateFrom));
       }
-      
+
       if (dateTo) {
         // Add 1 day to include all events on the "to" date
         const endDate = new Date(dateTo);
         endDate.setDate(endDate.getDate() + 1);
         constraints.push(where("time_in", "<", endDate));
       }
-      
+
       constraints.push(orderBy("time_in", "desc"));
-      
+
       const q = query(timeLogsRef, ...constraints);
       const logsSnapshot = await getDocs(q);
-      
+
       const allEvents: AuditLog[] = [];
-      const userCache = new Map<string, { name: string; role: "student" | "guard" }>();
+      const userCache = new Map<
+        string,
+        { name: string; role: "student" | "guard" }
+      >();
 
       for (const logDoc of logsSnapshot.docs) {
         const data = logDoc.data();
         const plateNumber = data.plateNumber || "N/A";
         const vehicleType = data.vehicleType || "car";
         const status = data.status || "pending";
-        
+
         // Validate required fields
         if (!data.time_in) continue;
 
         // Determine who made the entry (student or guard)
         let name = "Unknown";
         let role: "student" | "guard" | "visitor" = "visitor";
-        const userRefId = extractRefId(data.studentRef) || 
-                         extractRefId(data.guardRef);
+        const userRefId =
+          extractRefId(data.studentRef) || extractRefId(data.guardRef);
         const isStudent = !!data.studentRef;
 
         // Try to get cached user data first
@@ -1015,21 +1018,24 @@ export const AdminService = {
           try {
             const userCollection = isStudent ? "students" : "guards";
             const userDoc = await getDoc(doc(db, userCollection, userRefId));
-            
+
             if (userDoc.exists()) {
               const userData = userDoc.data();
               role = isStudent ? "student" : "guard";
-              
+
               // Handle different naming conventions
               const firstName = userData.firstName || userData.FirstName || "";
               const lastName = userData.lastName || userData.lastNameName || "";
               name = `${firstName} ${lastName}`.trim() || "Unknown";
-              
+
               // Cache the result
               userCache.set(userRefId, { name, role });
             }
           } catch (e) {
-            console.error(`Error fetching ${isStudent ? "student" : "guard"} data:`, e);
+            console.error(
+              `Error fetching ${isStudent ? "student" : "guard"} data:`,
+              e,
+            );
           }
         }
 
@@ -1039,13 +1045,13 @@ export const AdminService = {
           const timestamp = data.time_in.toDate
             ? data.time_in.toDate()
             : new Date(data.time_in);
-          
+
           const timeString = timestamp.toLocaleTimeString("en-US", {
             hour: "2-digit",
             minute: "2-digit",
             hour12: true,
           });
-          
+
           const dateString = timestamp.toLocaleDateString("en-US", {
             month: "short",
             day: "numeric",
@@ -1072,13 +1078,13 @@ export const AdminService = {
           const timestamp = data.time_out.toDate
             ? data.time_out.toDate()
             : new Date(data.time_out);
-          
+
           const timeString = timestamp.toLocaleTimeString("en-US", {
             hour: "2-digit",
             minute: "2-digit",
             hour12: true,
           });
-          
+
           const dateString = timestamp.toLocaleDateString("en-US", {
             month: "short",
             day: "numeric",

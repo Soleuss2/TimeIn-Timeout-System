@@ -1,12 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import {
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 type Props = {
   visible: boolean;
@@ -42,8 +36,7 @@ export function StudentDetectedModal({
 
           {/* Plate info */}
           <Text style={styles.plateRow}>
-            Plate number{" "}
-            <Text style={styles.plateBold}>{plateNumber}</Text>
+            Plate number <Text style={styles.plateBold}>{plateNumber}</Text>
           </Text>
 
           {/* Student name */}

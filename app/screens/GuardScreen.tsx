@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Camera, CameraView } from "expo-camera";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
+    Animated,
     Platform,
     SafeAreaView,
     ScrollView,
@@ -14,6 +15,7 @@ import {
     View,
 } from "react-native";
 import { AlertAction, CustomAlert } from "../../components/CustomAlert";
+import { LoaderComponent } from "../../components/LoaderComponent";
 import { processGuardEntry } from "../../services/guardService";
 import { AuthService } from "../../services/authService";
 
@@ -33,7 +35,7 @@ function parseScannedPayload(data: string): ScannedPayload | null {
     if (parsed && typeof parsed === "object") {
       return parsed as ScannedPayload;
     }
-  } catch (error) {
+  } catch {
     return null;
   }
 
@@ -47,6 +49,8 @@ export default function GuardScreen() {
   const [scannedData, setScannedData] = useState<string | null>(null);
   const scannedPayload = scannedData ? parseScannedPayload(scannedData) : null;
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   // Alert state
   const [alertVisible, setAlertVisible] = useState(false);
@@ -147,7 +151,7 @@ export default function GuardScreen() {
         });
       }
       setAlertVisible(true);
-    } catch (error) {
+    } catch {
       setAlertConfig({
         title: "Error",
         message: "Failed to process entry. Please check your connection.",
@@ -229,7 +233,7 @@ export default function GuardScreen() {
       }
       setAlertVisible(true);
       setPlate("");
-    } catch (error) {
+    } catch {
       setAlertConfig({
         title: "Error",
         message: "Failed to process entry. Please check your connection.",
@@ -265,8 +269,8 @@ export default function GuardScreen() {
 
   const handleLogout = async () => {
     setAlertConfig({
-      title: "Logout",
-      message: "Are you sure you want to logout?",
+      title: "Logout Confirmation",
+      message: "Are you sure you want to logout? You will need to sign in again.",
       type: "warning",
       buttons: [
         {
@@ -278,9 +282,66 @@ export default function GuardScreen() {
           text: "Yes, Logout",
           onPress: async () => {
             setAlertVisible(false);
-            setLogoutLoading(true);
-            await AuthService.logout();
-            router.replace("/");
+            try {
+              setLogoutLoading(true);
+              // Animate out before logout
+              Animated.parallel([
+                Animated.timing(fadeAnim, {
+                  toValue: 0,
+                  duration: 400,
+                  useNativeDriver: true,
+                }),
+                Animated.timing(scaleAnim, {
+                  toValue: 0.8,
+                  duration: 400,
+                  useNativeDriver: true,
+                }),
+              ]).start(async () => {
+                // Give loader time to render
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                // Perform logout
+                const result = await AuthService.logout();
+                if (result.success) {
+                  router.replace("/");
+                } else {
+                  setAlertConfig({
+                    title: "Logout Error",
+                    message: result.message || "Logout failed",
+                    type: "error",
+                    buttons: [
+                      {
+                        text: "OK",
+                        onPress: () => setAlertVisible(false),
+                        style: "default",
+                      },
+                    ],
+                  });
+                  setAlertVisible(true);
+                  setLogoutLoading(false);
+                  // Reset animations if logout failed
+                  fadeAnim.setValue(1);
+                  scaleAnim.setValue(1);
+                }
+              });
+            } catch {
+              setAlertConfig({
+                title: "Error",
+                message: "An error occurred during logout",
+                type: "error",
+                buttons: [
+                  {
+                    text: "OK",
+                    onPress: () => setAlertVisible(false),
+                    style: "default",
+                  },
+                ],
+              });
+              setAlertVisible(true);
+              setLogoutLoading(false);
+              // Reset animations on error
+              fadeAnim.setValue(1);
+              scaleAnim.setValue(1);
+            }
           },
           style: "destructive",
         },
@@ -300,6 +361,11 @@ export default function GuardScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <LoaderComponent
+        visible={logoutLoading}
+        message="Logging out..."
+        logoSize={100}
+      />
       <CustomAlert
         visible={alertVisible}
         title={alertConfig.title}
@@ -334,7 +400,15 @@ export default function GuardScreen() {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.contentShell}>
+        <Animated.View
+          style={[
+            styles.contentShell,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
           <View style={styles.scannerCard}>
             <View style={styles.scannerCaptureArea}>
               <View style={styles.cardHeader}>
@@ -430,7 +504,7 @@ export default function GuardScreen() {
               <Text style={styles.submitText}>SUBMIT ENTRY</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );

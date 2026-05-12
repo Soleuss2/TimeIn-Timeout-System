@@ -21,12 +21,7 @@ import { AlertAction, CustomAlert } from "../../components/CustomAlert";
 import { processGuardEntry } from "../../services/guardService";
 import { AuthService } from "../../services/authService";
 import { db } from "../../services/firebaseConfig";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 
 const VEHICLE_OPTIONS = ["Motorcycle", "EBike", "Cars"];
 
@@ -135,7 +130,7 @@ export default function AddVisitorScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [cardSlide, cardOpacity, buttonSlide, buttonOpacity]);
 
   // Animate dropdown open/close
   useEffect(() => {
@@ -145,7 +140,7 @@ export default function AddVisitorScreen() {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, [dropdownOpen]);
+  }, [dropdownOpen, dropdownHeight]);
 
   const showAlert = (
     title: string,
@@ -176,9 +171,18 @@ export default function AddVisitorScreen() {
 
   const handleSubmit = async () => {
     if (!visitorName.trim() || !plateNumber.trim()) {
-      showAlert("Validation", "Visitor name and plate number are required.", "warning", [
-        { text: "OK", onPress: () => setAlertVisible(false), style: "default" },
-      ]);
+      showAlert(
+        "Validation",
+        "Visitor name and plate number are required.",
+        "warning",
+        [
+          {
+            text: "OK",
+            onPress: () => setAlertVisible(false),
+            style: "default",
+          },
+        ],
+      );
       return;
     }
 
@@ -194,13 +198,19 @@ export default function AddVisitorScreen() {
       if (result.success) {
         setSuccessModal({
           visible: true,
-          action: (result.action === "TIMEIN" ? "TIMEIN" : "TIMEOUT") as "TIMEIN" | "TIMEOUT",
+          action: (result.action === "TIMEIN" ? "TIMEIN" : "TIMEOUT") as
+            | "TIMEIN"
+            | "TIMEOUT",
           name: visitorName.trim(),
           plate: plateNumber.trim().toUpperCase(),
         });
       } else {
         showAlert("Error", result.message || "Failed to log entry.", "error", [
-          { text: "OK", onPress: () => setAlertVisible(false), style: "default" },
+          {
+            text: "OK",
+            onPress: () => setAlertVisible(false),
+            style: "default",
+          },
         ]);
       }
     } catch {
@@ -255,7 +265,9 @@ export default function AddVisitorScreen() {
         visible={successModal.visible}
         transparent
         animationType="fade"
-        onRequestClose={() => setSuccessModal((s) => ({ ...s, visible: false }))}
+        onRequestClose={() =>
+          setSuccessModal((s) => ({ ...s, visible: false }))
+        }
       >
         <View style={styles.modalOverlay}>
           <View style={styles.successSheet}>
@@ -263,7 +275,9 @@ export default function AddVisitorScreen() {
               <Ionicons name="checkmark" size={36} color="#1f8e4d" />
             </View>
             <Text style={styles.successTitle}>
-              {successModal.action === "TIMEIN" ? "Time-In Logged!" : "Time-Out Logged!"}
+              {successModal.action === "TIMEIN"
+                ? "Time-In Logged!"
+                : "Time-Out Logged!"}
             </Text>
             <Text style={styles.successName}>{successModal.name}</Text>
             <View style={styles.successPlatePill}>
@@ -288,7 +302,9 @@ export default function AddVisitorScreen() {
                 router.replace("/");
               }}
             >
-              <Text style={styles.successButtonText}>Switch to Student Login Portal</Text>
+              <Text style={styles.successButtonText}>
+                Switch to Student Login Portal
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -459,7 +475,10 @@ export default function AddVisitorScreen() {
           }}
         >
           <TouchableOpacity
-            style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+            style={[
+              styles.submitButton,
+              submitting && styles.submitButtonDisabled,
+            ]}
             onPress={handleSubmit}
             disabled={submitting}
             activeOpacity={0.85}
