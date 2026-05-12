@@ -163,9 +163,9 @@ export default function StudentScreen() {
         setStudent(currentUser);
 
         // Fetch additional user data from Firestore based on their role
-        const collectionName = 
-          currentUser.role === "student" 
-            ? "students" 
+        const collectionName =
+          currentUser.role === "student"
+            ? "students"
             : currentUser.role === "faculty"
               ? "faculty"
               : currentUser.role === "staff"
@@ -179,7 +179,7 @@ export default function StudentScreen() {
           const userData = userDoc.data();
           setPlateNumber(userData.plateNumber || null);
         }
-      } catch (error) {
+      } catch {
         setAlertConfig({
           title: "Error",
           message: "Failed to load student data",
@@ -320,8 +320,8 @@ export default function StudentScreen() {
       const base64Data = await new Promise<string>((resolve, reject) => {
         try {
           qrRef.current.toDataURL((data: string) => resolve(data));
-        } catch (error) {
-          reject(error);
+        } catch (_error) {
+          reject(_error);
         }
       });
 
@@ -337,7 +337,7 @@ export default function StudentScreen() {
           message: `QR code for ${student?.name}`,
           url: file.uri,
         });
-      } catch (shareError) {
+      } catch {
         setAlertConfig({
           title: "Saved",
           message: "QR code has been generated locally.",
@@ -352,7 +352,7 @@ export default function StudentScreen() {
         });
         setAlertVisible(true);
       }
-    } catch (error) {
+    } catch {
       setAlertConfig({
         title: "Error",
         message: "Failed to export the QR code. Please try again.",
@@ -402,6 +402,8 @@ export default function StudentScreen() {
                   useNativeDriver: true,
                 }),
               ]).start(async () => {
+                // Give loader time to render
+                await new Promise((resolve) => setTimeout(resolve, 500));
                 // Perform logout
                 const result = await AuthService.logout();
                 if (result.success) {
@@ -426,7 +428,7 @@ export default function StudentScreen() {
                   triggerAnimations();
                 }
               });
-            } catch (error) {
+            } catch {
               setAlertConfig({
                 title: "Error",
                 message: "An error occurred during logout",
@@ -533,7 +535,9 @@ export default function StudentScreen() {
               <View style={styles.heroDecorBottom} />
               <View style={styles.heroTopRow}>
                 <View style={styles.heroCopy}>
-                  <Text style={styles.heroEyebrow}>Campus Parking Access Portal</Text>
+                  <Text style={styles.heroEyebrow}>
+                    Campus Parking Access Portal
+                  </Text>
                   <Text style={styles.heroTitle}>Digital Access Pass</Text>
                   <Text style={styles.heroSubtitle}>
                     Your QR code is ready for guard verification at the campus
@@ -728,23 +732,6 @@ export default function StudentScreen() {
               </Text>
             </View>
           </Animated.View>
-
-          <View style={styles.noteCard}>
-            <View style={styles.noteIcon}>
-              <Ionicons
-                name="information-circle-outline"
-                size={18}
-                color="#216b43"
-              />
-            </View>
-            <View style={styles.noteCopy}>
-              <Text style={styles.noteTitle}>Best scanning quality</Text>
-              <Text style={styles.noteText}>
-                Keep the screen brightness high and center the QR code under the
-                scanner for a faster gate check.
-              </Text>
-            </View>
-          </View>
 
           {/* Logout Button with animation */}
           <Animated.View
@@ -1170,39 +1157,6 @@ const styles = StyleSheet.create({
     color: "#62707d",
     fontSize: 12,
     lineHeight: 18,
-  },
-  noteCard: {
-    flexDirection: "row",
-    backgroundColor: "#ffffff",
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#e5ece7",
-    padding: 16,
-    marginBottom: 18,
-  },
-  noteIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: "#e4f4eb",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-    marginTop: 2,
-  },
-  noteCopy: {
-    flex: 1,
-  },
-  noteTitle: {
-    color: "#0f2818",
-    fontSize: 15,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  noteText: {
-    color: "#607181",
-    fontSize: 13,
-    lineHeight: 19,
   },
   logoutButton: {
     backgroundColor: "#d32f2f",

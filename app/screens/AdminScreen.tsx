@@ -19,6 +19,7 @@ import {
   TextInput,
   Modal,
   Alert,
+  Animated,
 } from "react-native";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { LoaderComponent } from "../../components/LoaderComponent";
@@ -35,13 +36,15 @@ import {
   filterAndSortAuditLogs,
 } from "../../services/searchService";
 
-type AdminScreenType = "overview" | "users" | "audit-logs" | "new-account"
+type AdminScreenType = "overview" | "users" | "audit-logs" | "new-account";
 export default function AdminScreen() {
   const router = useRouter();
   const authContext = useAuth();
   const adminId = authContext?.user?.id;
 
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   // ── Alert state (reused from campus parking access portal) ────────────────────────────
   const [alertVisible, setAlertVisible] = useState(false);
@@ -59,9 +62,11 @@ export default function AdminScreen() {
   // ─────────────────────────────────────────────────────────────────────────
   const [currentScreen, setCurrentScreen] =
     useState<AdminScreenType>("overview");
-  const [userType, setUserType] = useState<"students" | "faculty" | "staff" | "guards">("students");
+  const [userType, setUserType] = useState<
+    "students" | "faculty" | "staff" | "guards"
+  >("students");
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   // ── Date & Time Picker state ─────────────────────────────────────────
   const [dateFromDate, setDateFromDate] = useState(new Date());
   const [dateToDate, setDateToDate] = useState(new Date());
@@ -72,10 +77,10 @@ export default function AdminScreen() {
   const [showDateToPicker, setShowDateToPicker] = useState(false);
   const [showTimeToPicker, setShowTimeToPicker] = useState(false);
   // ─────────────────────────────────────────────────────────────────────
-  
-  const [newAccountRole, setNewAccountRole] = useState<"student" | "faculty" | "staff" | "guard">(
-    "student",
-  );
+
+  const [newAccountRole, setNewAccountRole] = useState<
+    "student" | "faculty" | "staff" | "guard"
+  >("student");
   const [showChartModal, setShowChartModal] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [creatingAccount, setCreatingAccount] = useState(false);
@@ -121,13 +126,7 @@ export default function AdminScreen() {
   );
   const displayedStaff = useMemo(
     () =>
-      searchAndSort(
-        staffTrie.current,
-        staff,
-        searchQuery,
-        sortKey,
-        sortOrder,
-      ),
+      searchAndSort(staffTrie.current, staff, searchQuery, sortKey, sortOrder),
     [staff, searchQuery, sortKey, sortOrder],
   );
   const displayedGuards = useMemo(
@@ -170,12 +169,13 @@ export default function AdminScreen() {
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
-      const [studentsData, facultyData, staffData, guardsData] = await Promise.all([
-        AdminService.fetchStudents(), // no query — fetch all
-        AdminService.fetchFaculty(),
-        AdminService.fetchStaff(),
-        AdminService.fetchGuards(),
-      ]);
+      const [studentsData, facultyData, staffData, guardsData] =
+        await Promise.all([
+          AdminService.fetchStudents(), // no query — fetch all
+          AdminService.fetchFaculty(),
+          AdminService.fetchStaff(),
+          AdminService.fetchGuards(),
+        ]);
       setStudents(studentsData);
       setFaculty(facultyData);
       setStaff(staffData);
@@ -188,7 +188,12 @@ export default function AdminScreen() {
       guardTrie.current = buildTrie(guardsData as any);
 
       // ── Populate Hash Set for duplicate detection ──────────────────
-      duplicateChecker.current.load([...studentsData, ...facultyData, ...staffData, ...guardsData]);
+      duplicateChecker.current.load([
+        ...studentsData,
+        ...facultyData,
+        ...staffData,
+        ...guardsData,
+      ]);
     } catch (error) {
       console.error("Error fetching users:", error);
       setErrorMessage("Failed to load users");
@@ -210,47 +215,75 @@ export default function AdminScreen() {
           // Format 1: MM/DD/YYYY HH:MM
           // Format 2: Oct 24, 00:00 (month day, time)
           // Format 3: ISO format
-          
+
           const parseDateString = (dateStr: string): Date | null => {
             if (!dateStr) return null;
-            
+
             // Try ISO format first
             let date = new Date(dateStr);
             if (!isNaN(date.getTime())) return date;
-            
+
             // Try MM/DD/YYYY HH:MM format
-            const mmddyyyyMatch = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+            const mmddyyyyMatch = dateStr.match(
+              /(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/,
+            );
             if (mmddyyyyMatch) {
               const [, month, day, year, hour, minute] = mmddyyyyMatch;
-              date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute));
+              date = new Date(
+                parseInt(year),
+                parseInt(month) - 1,
+                parseInt(day),
+                parseInt(hour),
+                parseInt(minute),
+              );
               if (!isNaN(date.getTime())) return date;
             }
-            
+
             // Try "Mon DD, HH:MM" format (e.g., "Oct 24, 00:00")
-            const monthDayMatch = dateStr.match(/([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{1,2}):(\d{2})/);
+            const monthDayMatch = dateStr.match(
+              /([A-Za-z]{3})\s+(\d{1,2}),\s+(\d{1,2}):(\d{2})/,
+            );
             if (monthDayMatch) {
               const [, monthStr, day, hour, minute] = monthDayMatch;
               const monthMap: Record<string, number> = {
-                'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-                'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+                Jan: 0,
+                Feb: 1,
+                Mar: 2,
+                Apr: 3,
+                May: 4,
+                Jun: 5,
+                Jul: 6,
+                Aug: 7,
+                Sep: 8,
+                Oct: 9,
+                Nov: 10,
+                Dec: 11,
               };
               const month = monthMap[monthStr];
               if (month !== undefined) {
                 const currentYear = new Date().getFullYear();
-                date = new Date(currentYear, month, parseInt(day), parseInt(hour), parseInt(minute));
+                date = new Date(
+                  currentYear,
+                  month,
+                  parseInt(day),
+                  parseInt(hour),
+                  parseInt(minute),
+                );
                 if (!isNaN(date.getTime())) return date;
               }
             }
-            
+
             return null;
           };
-          
+
           startDate = parseDateString(dateFromInput) || undefined;
           endDate = parseDateString(dateToInput) || undefined;
-          
+
           // If parsing failed, log warning but continue without date filters
           if (!startDate || !endDate) {
-            console.warn("Failed to parse dates, fetching all logs without date filter");
+            console.warn(
+              "Failed to parse dates, fetching all logs without date filter",
+            );
           }
         } catch (e) {
           console.error("Error parsing dates:", e);
@@ -309,25 +342,46 @@ export default function AdminScreen() {
             setAlertVisible(false);
             try {
               setLogoutLoading(true);
-              const result = await AuthService.logout();
-              if (result.success) {
-                router.replace("/");
-              } else {
-                setLogoutLoading(false);
-                setAlertConfig({
-                  title: "Logout Error",
-                  message: result.message || "Logout failed. Please try again.",
-                  type: "error",
-                  buttons: [
-                    {
-                      text: "OK",
-                      onPress: () => setAlertVisible(false),
-                      style: "default",
-                    },
-                  ],
-                });
-                setAlertVisible(true);
-              }
+              // Animate out before logout
+              Animated.parallel([
+                Animated.timing(fadeAnim, {
+                  toValue: 0,
+                  duration: 400,
+                  useNativeDriver: true,
+                }),
+                Animated.timing(scaleAnim, {
+                  toValue: 0.8,
+                  duration: 400,
+                  useNativeDriver: true,
+                }),
+              ]).start(async () => {
+                // Give loader time to render
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                // Perform logout
+                const result = await AuthService.logout();
+                if (result.success) {
+                  router.replace("/");
+                } else {
+                  setLogoutLoading(false);
+                  setAlertConfig({
+                    title: "Logout Error",
+                    message:
+                      result.message || "Logout failed. Please try again.",
+                    type: "error",
+                    buttons: [
+                      {
+                        text: "OK",
+                        onPress: () => setAlertVisible(false),
+                        style: "default",
+                      },
+                    ],
+                  });
+                  setAlertVisible(true);
+                  // Reset animations if logout failed
+                  fadeAnim.setValue(1);
+                  scaleAnim.setValue(1);
+                }
+              });
             } catch (error) {
               console.error("Logout error:", error);
               setLogoutLoading(false);
@@ -344,6 +398,9 @@ export default function AdminScreen() {
                 ],
               });
               setAlertVisible(true);
+              // Reset animations on error
+              fadeAnim.setValue(1);
+              scaleAnim.setValue(1);
             }
           },
           style: "destructive",
@@ -422,7 +479,11 @@ export default function AdminScreen() {
       }
     }
 
-    if (newAccountRole === "faculty" || newAccountRole === "staff" || newAccountRole === "guard") {
+    if (
+      newAccountRole === "faculty" ||
+      newAccountRole === "staff" ||
+      newAccountRole === "guard"
+    ) {
       if (!employeeId.trim()) {
         setErrorMessage("Employee ID is required");
         return false;
@@ -572,7 +633,10 @@ export default function AdminScreen() {
             parkingHoursData.map((data, index) => (
               <View key={index} style={styles.barWrapper}>
                 <View
-                  style={[styles.bar, { height: `${Math.min(data.height, 100)}%` }]}
+                  style={[
+                    styles.bar,
+                    { height: `${Math.min(data.height, 100)}%` },
+                  ]}
                 />
               </View>
             ))
@@ -602,14 +666,14 @@ export default function AdminScreen() {
 
   const renderUsersScreen = () => {
     const displayed =
-      userType === "students" 
-        ? displayedStudents 
+      userType === "students"
+        ? displayedStudents
         : userType === "faculty"
           ? displayedFaculty
           : userType === "staff"
             ? displayedStaff
             : displayedGuards;
-    
+
     return (
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.screenTitle}>Directory</Text>
@@ -815,13 +879,25 @@ export default function AdminScreen() {
 
   // ── Date & Time Picker Handlers ────────────────────────────────────────
   const formatDateDisplay = (date: Date, showTime: boolean = true): string => {
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     const month = monthNames[date.getMonth()];
     const day = date.getDate();
     const hour = String(date.getHours()).padStart(2, "0");
     const minute = String(date.getMinutes()).padStart(2, "0");
-    
+
     if (showTime) {
       return `${month} ${day}, ${hour}:${minute}`;
     }
@@ -880,7 +956,7 @@ export default function AdminScreen() {
 
         <View style={styles.dateRangeContainer}>
           <Text style={styles.dateLabel}>DATE & TIME RANGE QUERY</Text>
-          
+
           <View style={styles.datePickersRow}>
             {/* From Date & Time Picker */}
             <View style={styles.datePickerGroup}>
@@ -890,7 +966,9 @@ export default function AdminScreen() {
                 onPress={() => setShowDateFromPicker(true)}
               >
                 <Ionicons name="calendar" size={16} color="#1f8e4d" />
-                <Text style={styles.datePickerButtonText}>{formatDateDisplay(dateFromDate, false)}</Text>
+                <Text style={styles.datePickerButtonText}>
+                  {formatDateDisplay(dateFromDate, false)}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.timePickerButton}
@@ -898,7 +976,8 @@ export default function AdminScreen() {
               >
                 <Ionicons name="time" size={16} color="#1f8e4d" />
                 <Text style={styles.timePickerButtonText}>
-                  {String(dateFromDate.getHours()).padStart(2, "0")}:{String(dateFromDate.getMinutes()).padStart(2, "0")}
+                  {String(dateFromDate.getHours()).padStart(2, "0")}:
+                  {String(dateFromDate.getMinutes()).padStart(2, "0")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -913,7 +992,9 @@ export default function AdminScreen() {
                 onPress={() => setShowDateToPicker(true)}
               >
                 <Ionicons name="calendar" size={16} color="#1f8e4d" />
-                <Text style={styles.datePickerButtonText}>{formatDateDisplay(dateToDate, false)}</Text>
+                <Text style={styles.datePickerButtonText}>
+                  {formatDateDisplay(dateToDate, false)}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.timePickerButton}
@@ -921,7 +1002,8 @@ export default function AdminScreen() {
               >
                 <Ionicons name="time" size={16} color="#1f8e4d" />
                 <Text style={styles.timePickerButtonText}>
-                  {String(dateToDate.getHours()).padStart(2, "0")}:{String(dateToDate.getMinutes()).padStart(2, "0")}
+                  {String(dateToDate.getHours()).padStart(2, "0")}:
+                  {String(dateToDate.getMinutes()).padStart(2, "0")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -996,10 +1078,7 @@ export default function AdminScreen() {
         <View style={styles.auditLogsList}>
           {loadingAnalytics ? (
             <View style={styles.loadingContainer}>
-              <LoaderComponent
-                visible={true}
-                message="Loading audit logs..."
-              />
+              <LoaderComponent visible={true} message="Loading audit logs..." />
             </View>
           ) : displayedLogs.length > 0 ? (
             <>
@@ -1494,10 +1573,11 @@ export default function AdminScreen() {
   );
 
   const renderChartModal = () => {
-    const maxCount = parkingHoursData.length > 0
-      ? Math.max(...parkingHoursData.map(d => d.count), 1)
-      : 160;
-    
+    const maxCount =
+      parkingHoursData.length > 0
+        ? Math.max(...parkingHoursData.map((d) => d.count), 1)
+        : 160;
+
     // Smart Y-axis scaling — use smaller increments for low data
     let yAxisMax;
     if (maxCount <= 10) {
@@ -1525,17 +1605,23 @@ export default function AdminScreen() {
           </View>
 
           <ScrollView contentContainerStyle={styles.modalContent}>
-            <Text style={styles.modalSubtitle}>Vehicle volume over time today</Text>
+            <Text style={styles.modalSubtitle}>
+              Vehicle volume over time today
+            </Text>
 
             <View style={styles.expandedChartContainer}>
               <View style={styles.yAxisLabels}>
-                {[yAxisMax, (yAxisMax * 3) / 4, (yAxisMax / 2), (yAxisMax / 4), 0].map(
-                  (val, idx) => (
-                    <Text key={idx} style={styles.yAxisLabel}>
-                      {Math.round(val)}
-                    </Text>
-                  ),
-                )}
+                {[
+                  yAxisMax,
+                  (yAxisMax * 3) / 4,
+                  yAxisMax / 2,
+                  yAxisMax / 4,
+                  0,
+                ].map((val, idx) => (
+                  <Text key={idx} style={styles.yAxisLabel}>
+                    {Math.round(val)}
+                  </Text>
+                ))}
               </View>
 
               <View style={styles.chartContent}>
@@ -1624,7 +1710,6 @@ export default function AdminScreen() {
       )}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Admin Portal</Text>
-        <Text style={styles.headerSubtitle}>System Management</Text>
         <TouchableOpacity style={styles.headerButton} onPress={handleLogout}>
           <Ionicons name="exit-outline" size={20} color="#fff" />
         </TouchableOpacity>

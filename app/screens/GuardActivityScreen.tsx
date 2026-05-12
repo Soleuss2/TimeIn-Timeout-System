@@ -11,68 +11,60 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { MOCK_ACTIVITY_LOGS } from "../../services/mockData";
-import type { ActivityLog } from "../../types";
+import { ActivityLog } from "../../types";
 
 const DATE_OPTIONS = ["All Date", "Today", "Yesterday"] as const;
 const ENTRY_OPTIONS = ["All Entry", "Student", "Visitor"] as const;
 const VEHICLE_OPTIONS = ["All Vehicles", "Motorcycle", "Car"] as const;
 
-function getIconName(item: ActivityLog) {
-  return item.studentId.startsWith("VIS") ? "bicycle" : "car-sport";
-}
-
-function getEntryLabel(item: ActivityLog) {
-  return item.studentId.startsWith("VIS") ? "VISITOR" : "STUDENT";
-}
-
-function getStatusBadge(item: ActivityLog) {
-  return !item.timeOut ? "ON CAMPUS" : null;
-}
-
 export default function GuardActivityScreen() {
   const router = useRouter();
+
   const [search, setSearch] = useState("");
-  const [dateFilter, setDateFilter] =
-    useState<(typeof DATE_OPTIONS)[number]>("All Date");
-  const [entryFilter, setEntryFilter] =
-    useState<(typeof ENTRY_OPTIONS)[number]>("All Entry");
-  const [vehicleFilter, setVehicleFilter] =
-    useState<(typeof VEHICLE_OPTIONS)[number]>("All Vehicles");
+  const [dateFilter, setDateFilter] = useState<(typeof DATE_OPTIONS)[number]>(
+    DATE_OPTIONS[0],
+  );
+  const [entryFilter, setEntryFilter] = useState<
+    (typeof ENTRY_OPTIONS)[number]
+  >(ENTRY_OPTIONS[0]);
+  const [vehicleFilter, setVehicleFilter] = useState<
+    (typeof VEHICLE_OPTIONS)[number]
+  >(VEHICLE_OPTIONS[0]);
   const [expandedFilter, setExpandedFilter] = useState<string | null>(null);
+  const [loading] = useState(false);
 
-  const filteredLogs = MOCK_ACTIVITY_LOGS.filter((item) => {
+  const filteredLogs = MOCK_ACTIVITY_LOGS.filter((item: ActivityLog) => {
     const matchesSearch =
+      search.length === 0 ||
+      item.studentId.toLowerCase().includes(search.toLowerCase()) ||
       item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.plate.toLowerCase().includes(search.toLowerCase()) ||
-      item.studentId.toLowerCase().includes(search.toLowerCase());
+      item.plate.toLowerCase().includes(search.toLowerCase());
 
+    const role = item.studentId.startsWith("VIS") ? "Visitor" : "Student";
     const matchesEntry =
-      entryFilter === "All Entry" ||
-      (entryFilter === "Student" && !item.studentId.startsWith("VIS")) ||
-      (entryFilter === "Visitor" && item.studentId.startsWith("VIS"));
+      entryFilter === ENTRY_OPTIONS[0] || role === entryFilter;
 
     const matchesVehicle =
-      vehicleFilter === "All Vehicles" ||
-      (vehicleFilter === "Motorcycle" && item.studentId.startsWith("VIS")) ||
-      (vehicleFilter === "Car" && !item.studentId.startsWith("VIS"));
+      vehicleFilter === VEHICLE_OPTIONS[0] ||
+      (vehicleFilter === "Motorcycle"
+        ? item.plate.includes("XYZ")
+        : !item.plate.includes("XYZ"));
 
     return matchesSearch && matchesEntry && matchesVehicle;
   });
 
-  const insideCount = MOCK_ACTIVITY_LOGS.filter((item) => !item.timeOut).length;
-  const departedCount = MOCK_ACTIVITY_LOGS.length - insideCount;
-  const totalCount = MOCK_ACTIVITY_LOGS.length;
+  const totalVehicles = MOCK_ACTIVITY_LOGS.length;
+  const insideCount = filteredLogs.filter((item) => !item.timeOut).length;
+  const departedCount = filteredLogs.filter((item) => !!item.timeOut).length;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       {Platform.OS !== "web" && (
         <StatusBar barStyle="light-content" backgroundColor="#1f8e4d" />
       )}
-      <View style={styles.backgroundShapeTop} />
-      <View style={styles.backgroundShapeBottom} />
-
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -80,252 +72,336 @@ export default function GuardActivityScreen() {
         >
           <Ionicons name="arrow-back" size={20} color="#fff" />
         </TouchableOpacity>
-        <View style={styles.headerCopy}>
-          <Text style={styles.headerTitle}>Activity Dashboard</Text>
-          <Text style={styles.headerSubtitle}>Gate Entry/Exit Log</Text>
-        </View>
-        <Ionicons name="bar-chart-outline" size={24} color="#fff" />
+        <Text style={styles.headerTitle}>Activity Logs</Text>
+        <View style={{ width: 20 }} />
       </View>
 
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.contentShell}>
-          {/* Stats Grid */}
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <View style={styles.statIconContainer}>
-                <Ionicons name="car-sport" size={24} color="#1f8e4d" />
-              </View>
-              <Text style={styles.statValue}>{totalCount}</Text>
-              <Text style={styles.statLabel}>Total Entries</Text>
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <View style={styles.statCardIcon}>
+              <Ionicons name="car-sport" size={20} color="#1f8e4d" />
             </View>
-
-            <View style={styles.statCard}>
-              <View style={styles.statIconContainer}>
-                <Ionicons name="arrow-forward" size={24} color="#ff6b6b" />
-              </View>
-              <Text style={styles.statValue}>{insideCount}</Text>
-              <Text style={styles.statLabel}>On Campus</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <View style={styles.statIconContainer}>
-                <Ionicons name="exit-outline" size={24} color="#ffa500" />
-              </View>
-              <Text style={styles.statValue}>{departedCount}</Text>
-              <Text style={styles.statLabel}>Departed</Text>
-            </View>
+            <Text style={styles.statNumber}>{totalVehicles}</Text>
+            <Text style={styles.statLabel}>Total Vehicles</Text>
           </View>
-
-          {/* Search Bar */}
-          <View style={styles.searchCard}>
-            <Ionicons name="search-outline" size={18} color="#999" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search by name, plate, or ID"
-              placeholderTextColor="#999"
-              value={search}
-              onChangeText={setSearch}
-            />
+          <View style={styles.statCard}>
+            <View style={styles.statCardIcon}>
+              <Ionicons name="location" size={20} color="#1f8e4d" />
+            </View>
+            <Text style={styles.statNumber}>{insideCount}</Text>
+            <Text style={styles.statLabel}>Inside Campus</Text>
           </View>
-
-          {/* Filters */}
-          <View style={styles.filterRow}>
-            <View style={styles.filterContainer}>
-              <TouchableOpacity
-                style={styles.filterHeader}
-                onPress={() =>
-                  setExpandedFilter(expandedFilter === "date" ? null : "date")
-                }
-              >
-                <Text style={styles.filterHeaderText}>{dateFilter}</Text>
-                <Ionicons
-                  name={
-                    expandedFilter === "date" ? "chevron-up" : "chevron-down"
-                  }
-                  size={16}
-                  color="#1f8e4d"
-                />
-              </TouchableOpacity>
-              {expandedFilter === "date" && (
-                <View style={styles.filterDropdown}>
-                  {DATE_OPTIONS.map((option) => (
-                    <TouchableOpacity
-                      key={option}
-                      style={[
-                        styles.filterOption,
-                        dateFilter === option && styles.filterOptionActive,
-                      ]}
-                      onPress={() => {
-                        setDateFilter(option);
-                        setExpandedFilter(null);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.filterOptionText,
-                          dateFilter === option &&
-                            styles.filterOptionTextActive,
-                        ]}
-                      >
-                        {option}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+          <View style={styles.statCard}>
+            <View style={styles.statCardIcon}>
+              <Ionicons name="exit" size={20} color="#1f8e4d" />
             </View>
-
-            <View style={styles.filterContainer}>
-              <TouchableOpacity
-                style={styles.filterHeader}
-                onPress={() =>
-                  setExpandedFilter(expandedFilter === "entry" ? null : "entry")
-                }
-              >
-                <Text style={styles.filterHeaderText}>{entryFilter}</Text>
-                <Ionicons
-                  name={
-                    expandedFilter === "entry" ? "chevron-up" : "chevron-down"
-                  }
-                  size={16}
-                  color="#1f8e4d"
-                />
-              </TouchableOpacity>
-              {expandedFilter === "entry" && (
-                <View style={styles.filterDropdown}>
-                  {ENTRY_OPTIONS.map((option) => (
-                    <TouchableOpacity
-                      key={option}
-                      style={[
-                        styles.filterOption,
-                        entryFilter === option && styles.filterOptionActive,
-                      ]}
-                      onPress={() => {
-                        setEntryFilter(option);
-                        setExpandedFilter(null);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.filterOptionText,
-                          entryFilter === option &&
-                            styles.filterOptionTextActive,
-                        ]}
-                      >
-                        {option}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            <View style={styles.filterContainer}>
-              <TouchableOpacity
-                style={styles.filterHeader}
-                onPress={() =>
-                  setExpandedFilter(
-                    expandedFilter === "vehicle" ? null : "vehicle",
-                  )
-                }
-              >
-                <Text style={styles.filterHeaderText}>{vehicleFilter}</Text>
-                <Ionicons
-                  name={
-                    expandedFilter === "vehicle" ? "chevron-up" : "chevron-down"
-                  }
-                  size={16}
-                  color="#1f8e4d"
-                />
-              </TouchableOpacity>
-              {expandedFilter === "vehicle" && (
-                <View style={styles.filterDropdown}>
-                  {VEHICLE_OPTIONS.map((option) => (
-                    <TouchableOpacity
-                      key={option}
-                      style={[
-                        styles.filterOption,
-                        vehicleFilter === option && styles.filterOptionActive,
-                      ]}
-                      onPress={() => {
-                        setVehicleFilter(option);
-                        setExpandedFilter(null);
-                      }}
-                    >
-                      <Text
-                        style={[
-                          styles.filterOptionText,
-                          vehicleFilter === option &&
-                            styles.filterOptionTextActive,
-                        ]}
-                      >
-                        {option}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Activity Table */}
-          <View style={styles.logsCard}>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.columnText, styles.columnId]}>
-                ID NUMBER
-              </Text>
-              <Text style={[styles.columnText, styles.columnName]}>NAME</Text>
-              <Text style={[styles.columnText, styles.columnVehicle]}>
-                VEHICLE
-              </Text>
-              <Text style={[styles.columnText, styles.columnTimeIn]}>
-                TIME-IN
-              </Text>
-              <Text style={[styles.columnText, styles.columnTimeOut]}>
-                TIME-OUT
-              </Text>
-              <Text style={[styles.columnText, styles.columnDate]}>DATE</Text>
-            </View>
-
-            {filteredLogs.map((item: ActivityLog) => (
-              <View key={item.id} style={styles.logItem}>
-                <Text style={[styles.columnId, styles.logId]}>
-                  {item.studentId}
-                </Text>
-                <View style={[styles.columnName]}>
-                  <Text style={styles.logName}>{item.name}</Text>
-                  <Text style={styles.logRole}>{getEntryLabel(item)}</Text>
-                </View>
-                <View style={[styles.columnVehicle]}>
-                  <View style={styles.vehicleBadge}>
-                    <Ionicons name={getIconName(item)} size={14} color="#fff" />
-                  </View>
-                  <Text style={styles.logPlate}>{item.plate}</Text>
-                </View>
-                <Text style={[styles.columnTimeIn, styles.logTime]}>
-                  {item.timeIn}
-                </Text>
-                <View style={[styles.columnTimeOut]}>
-                  {getStatusBadge(item) ? (
-                    <Text style={styles.statusBadgeText}>
-                      {getStatusBadge(item)}
-                    </Text>
-                  ) : (
-                    <Text style={styles.timeOutText}>{item.timeOut}</Text>
-                  )}
-                </View>
-                <Text style={[styles.columnDate, styles.logDate]}>
-                  05/01/2026
-                </Text>
-              </View>
-            ))}
-
-            <Text style={styles.endText}>↡ End of records</Text>
+            <Text style={styles.statNumber}>{departedCount}</Text>
+            <Text style={styles.statLabel}>Departed</Text>
           </View>
         </View>
+
+        <View style={styles.searchSection}>
+          <Ionicons
+            name="search"
+            size={20}
+            color="#999"
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by plate number, name or ID..."
+            placeholderTextColor="#999"
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
+
+        <View style={styles.filterBarRow}>
+          <View style={styles.filterDropdownWrapper}>
+            <TouchableOpacity
+              style={styles.filterDropdown}
+              onPress={() =>
+                setExpandedFilter(expandedFilter === "date" ? null : "date")
+              }
+            >
+              <Ionicons
+                name="calendar"
+                size={16}
+                color="#1f8e4d"
+                style={styles.filterIcon}
+              />
+              <Text style={styles.filterDropdownText}>{dateFilter}</Text>
+              <Ionicons
+                name={expandedFilter === "date" ? "chevron-up" : "chevron-down"}
+                size={16}
+                color="#666"
+              />
+            </TouchableOpacity>
+            {expandedFilter === "date" && (
+              <View style={styles.dropdownMenu}>
+                {DATE_OPTIONS.map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setDateFilter(option);
+                      setExpandedFilter(null);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        dateFilter === option && styles.dropdownItemActive,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.filterDropdownWrapper}>
+            <TouchableOpacity
+              style={styles.filterDropdown}
+              onPress={() =>
+                setExpandedFilter(expandedFilter === "entry" ? null : "entry")
+              }
+            >
+              <Ionicons
+                name="person"
+                size={16}
+                color="#1f8e4d"
+                style={styles.filterIcon}
+              />
+              <Text style={styles.filterDropdownText}>{entryFilter}</Text>
+              <Ionicons
+                name={
+                  expandedFilter === "entry" ? "chevron-up" : "chevron-down"
+                }
+                size={16}
+                color="#666"
+              />
+            </TouchableOpacity>
+            {expandedFilter === "entry" && (
+              <View style={styles.dropdownMenu}>
+                {ENTRY_OPTIONS.map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setEntryFilter(option);
+                      setExpandedFilter(null);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        entryFilter === option && styles.dropdownItemActive,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.filterDropdownWrapper}>
+            <TouchableOpacity
+              style={styles.filterDropdown}
+              onPress={() =>
+                setExpandedFilter(
+                  expandedFilter === "vehicle" ? null : "vehicle",
+                )
+              }
+            >
+              <Ionicons
+                name="car-sport"
+                size={16}
+                color="#1f8e4d"
+                style={styles.filterIcon}
+              />
+              <Text style={styles.filterDropdownText}>{vehicleFilter}</Text>
+              <Ionicons
+                name={
+                  expandedFilter === "vehicle" ? "chevron-up" : "chevron-down"
+                }
+                size={16}
+                color="#666"
+              />
+            </TouchableOpacity>
+            {expandedFilter === "vehicle" && (
+              <View style={styles.dropdownMenu}>
+                {VEHICLE_OPTIONS.map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setVehicleFilter(option);
+                      setExpandedFilter(null);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        vehicleFilter === option && styles.dropdownItemActive,
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+
+        {loading ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="large" color="#1f8e4d" />
+          </View>
+        ) : filteredLogs.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="document-text" size={64} color="#ddd" />
+            <Text style={styles.emptyStateText}>No activity records found</Text>
+          </View>
+        ) : (
+          <>
+            {Platform.OS === "web" ? (
+              <View style={styles.tableContainer}>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableCell, styles.tableCellID]}>
+                    ID NUMBER
+                  </Text>
+                  <Text style={[styles.tableCell, styles.tableCellName]}>
+                    NAME
+                  </Text>
+                  <Text style={[styles.tableCell, styles.tableCellVehicle]}>
+                    VEHICLE
+                  </Text>
+                  <Text style={[styles.tableCell, styles.tableCellTime]}>
+                    TIME IN
+                  </Text>
+                  <Text style={[styles.tableCell, styles.tableCellTime]}>
+                    TIME OUT
+                  </Text>
+                  <Text style={[styles.tableCell, styles.tableCellDate]}>
+                    DATE
+                  </Text>
+                </View>
+                {filteredLogs.map((item: ActivityLog, index: number) => (
+                  <View key={index} style={styles.tableRow}>
+                    <Text style={[styles.tableCell, styles.tableCellID]}>
+                      {item.studentId}
+                    </Text>
+                    <Text style={[styles.tableCell, styles.tableCellName]}>
+                      {item.name}
+                      <Text style={styles.entryTypeTag}>
+                        {"\n"}
+                        {item.studentId.startsWith("VIS")
+                          ? "VISITOR"
+                          : "STUDENT"}
+                      </Text>
+                    </Text>
+                    <View style={[styles.tableCellVehicle, styles.vehicleCell]}>
+                      <Ionicons
+                        name={
+                          item.studentId.startsWith("VIS")
+                            ? "bicycle"
+                            : "car-sport"
+                        }
+                        size={20}
+                        color="#1f8e4d"
+                      />
+                      <Text style={styles.vehiclePlate}>{item.plate}</Text>
+                    </View>
+                    <Text style={[styles.tableCell, styles.tableCellTime]}>
+                      {new Date(item.timeIn).toLocaleTimeString("en-US", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                    <Text style={[styles.tableCell, styles.tableCellTime]}>
+                      {item.timeOut
+                        ? new Date(item.timeOut).toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "ON CAMPUS"}
+                    </Text>
+                    <Text style={[styles.tableCell, styles.tableCellDate]}>
+                      {new Date(item.timeIn).toLocaleDateString("en-US", {
+                        month: "2-digit",
+                        day: "2-digit",
+                        year: "numeric",
+                      })}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.mobileListContainer}>
+                <View style={styles.mobileListHeader}>
+                  <Text style={styles.mobileHeaderLabel}>ID NUMBER</Text>
+                  <Text style={[styles.mobileHeaderLabel, { flex: 2 }]}>
+                    NAME
+                  </Text>
+                  <Text style={styles.mobileHeaderLabel}>VEHICLE</Text>
+                </View>
+                {filteredLogs.map((item: ActivityLog, index: number) => (
+                  <View key={index} style={styles.mobileListItem}>
+                    <Text style={styles.mobileItemID}>{item.studentId}</Text>
+                    <View style={{ flex: 2 }}>
+                      <Text style={styles.mobileItemName}>{item.name}</Text>
+                      <View style={styles.mobileItemTagContainer}>
+                        <Ionicons
+                          name={
+                            item.studentId.startsWith("VIS")
+                              ? "person-add"
+                              : "person"
+                          }
+                          size={11}
+                          color="#999"
+                          style={{ marginRight: 2 }}
+                        />
+                        <Text style={styles.mobileItemTag}>
+                          {item.studentId.startsWith("VIS")
+                            ? "VISITOR"
+                            : "STUDENT"}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.mobileItemVehicle}>
+                      <Ionicons
+                        name={
+                          item.studentId.startsWith("VIS")
+                            ? "bicycle"
+                            : "car-sport"
+                        }
+                        size={20}
+                        color="#1f8e4d"
+                      />
+                      <Text style={styles.mobileItemPlate}>{item.plate}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
+
+        <Text style={styles.endOfList}>
+          {filteredLogs.length === 0
+            ? ""
+            : `End of records • ${filteredLogs.length} entries`}
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -334,291 +410,272 @@ export default function GuardActivityScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#eef4ef",
-  },
-  backgroundShapeTop: {
-    position: "absolute",
-    top: -60,
-    right: -40,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "rgba(31, 142, 77, 0.08)",
-  },
-  backgroundShapeBottom: {
-    position: "absolute",
-    bottom: 30,
-    left: -70,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: "rgba(17, 65, 42, 0.05)",
-  },
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 36,
-  },
-  contentShell: {
-    width: "100%",
-    maxWidth: 560,
-    alignSelf: "center",
+    backgroundColor: "#f5f5f5",
   },
   header: {
     backgroundColor: "#1f8e4d",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
   },
   backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  headerCopy: {
-    flex: 1,
+    padding: 8,
   },
   headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
     color: "#fff",
-    fontSize: 20,
-    fontWeight: "800",
+    flex: 1,
+    textAlign: "center",
   },
-  headerSubtitle: {
-    color: "#d6f0d9",
-    marginTop: 4,
-    fontSize: 13,
+  container: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: 32,
   },
   statsGrid: {
     flexDirection: "row",
+    justifyContent: "space-between",
     gap: 12,
     marginBottom: 16,
   },
   statCard: {
     flex: 1,
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 8,
+    padding: 12,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  statIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "#f0f5f2",
     justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
   },
-  statValue: {
+  statCardIcon: {
+    marginBottom: 6,
+  },
+  statNumber: {
     fontSize: 24,
-    fontWeight: "900",
-    color: "#1f2d3d",
+    fontWeight: "700",
+    color: "#1f8e4d",
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 11,
-    color: "#8f9ba7",
-    fontWeight: "700",
+    color: "#666",
+    textAlign: "center",
+    fontWeight: "500",
   },
-  searchCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  searchSection: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    marginBottom: 16,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    height: 40,
+  },
+  searchIcon: {
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 10,
-    fontSize: 14,
-    color: "#333",
-  },
-  filterRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-    gap: 10,
-  },
-  filterContainer: {
-    flex: 1,
-  },
-  filterHeader: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    zIndex: 10,
-  },
-  filterHeaderText: {
-    color: "#333",
     fontSize: 13,
-    fontWeight: "700",
+    color: "#333",
+  },
+  filterBarRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 12,
+  },
+  filterDropdownWrapper: {
+    flex: 1,
   },
   filterDropdown: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderTopWidth: 0,
-    marginTop: -1,
-    overflow: "hidden",
-    zIndex: 9,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: 36,
+    gap: 6,
   },
-  filterOption: {
+  filterIcon: {
+    marginRight: 2,
+  },
+  filterDropdownText: {
+    fontSize: 12,
+    color: "#333",
+    fontWeight: "500",
+  },
+  dropdownMenu: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff",
+    borderRadius: 6,
+    marginTop: 4,
+    zIndex: 1000,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
+    overflow: "hidden",
+  },
+  dropdownItem: {
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
-  filterOptionActive: {
-    backgroundColor: "#eaf6ef",
-  },
-  filterOptionText: {
+  dropdownItemText: {
+    fontSize: 12,
     color: "#666",
-    fontSize: 13,
+  },
+  dropdownItemActive: {
+    color: "#1f8e4d",
     fontWeight: "600",
   },
-  filterOptionTextActive: {
-    color: "#1f8e4d",
-    fontWeight: "800",
+  loaderContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    height: 200,
   },
-  logsCard: {
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: "#999",
+    marginTop: 12,
+  },
+  mobileListContainer: {
     backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 0,
-    marginBottom: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 16,
-    elevation: 3,
+    borderRadius: 8,
     overflow: "hidden",
+    marginBottom: 12,
+  },
+  mobileListHeader: {
+    flexDirection: "row",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    backgroundColor: "#fafafa",
+  },
+  mobileHeaderLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#999",
+    textTransform: "uppercase",
+  },
+  mobileListItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f5f5f5",
+    gap: 8,
+  },
+  mobileItemID: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#333",
+    width: 60,
+  },
+  mobileItemName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+  },
+  mobileItemTag: {
+    fontSize: 10,
+    color: "#999",
+    fontWeight: "500",
+  },
+  mobileItemTagContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  mobileItemVehicle: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mobileItemPlate: {
+    fontSize: 10,
+    color: "#666",
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  tableContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    overflow: "hidden",
+    marginBottom: 12,
   },
   tableHeader: {
     flexDirection: "row",
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
+    backgroundColor: "#fafafa",
     borderBottomWidth: 1,
-    borderBottomColor: "#edf2f7",
-    backgroundColor: "#fbfcfd",
+    borderBottomColor: "#e0e0e0",
   },
-  columnText: {
-    color: "#8f9ba7",
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-  },
-  columnId: {
-    flex: 1.2,
-  },
-  columnName: {
-    flex: 1.5,
-  },
-  columnVehicle: {
-    flex: 1.2,
+  tableRow: {
     flexDirection: "row",
-    alignItems: "center",
-  },
-  columnTimeIn: {
-    flex: 1,
-    textAlign: "center",
-  },
-  columnTimeOut: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  columnDate: {
-    flex: 0.9,
-    textAlign: "right",
-  },
-  logItem: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "#edf2f7",
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f5f5f5",
     alignItems: "center",
   },
-  logId: {
-    color: "#2d3a4b",
-    fontWeight: "800",
+  tableCell: {
     fontSize: 12,
+    color: "#333",
   },
-  logName: {
-    color: "#1f2d3d",
-    fontSize: 13,
-    fontWeight: "800",
-    marginBottom: 2,
+  tableCellID: {
+    width: 80,
+    fontWeight: "600",
   },
-  logRole: {
-    color: "#8f9ba7",
+  tableCellName: {
+    flex: 1.2,
+  },
+  tableCellVehicle: {
+    flex: 1,
+  },
+  tableCellTime: {
+    width: 90,
+  },
+  tableCellDate: {
+    width: 100,
+  },
+  vehicleCell: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  vehiclePlate: {
+    fontSize: 12,
+    color: "#333",
+    fontWeight: "500",
+  },
+  entryTypeTag: {
     fontSize: 10,
-    fontWeight: "700",
+    color: "#999",
+    fontWeight: "500",
   },
-  vehicleBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 10,
-    backgroundColor: "#1f8e4d",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-  },
-  logPlate: {
-    color: "#1f2d3d",
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  logTime: {
-    color: "#1f2d3d",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  timeOutText: {
-    color: "#1f2d3d",
-    fontSize: 12,
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  logDate: {
-    color: "#1f2d3d",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  statusBadgeText: {
-    backgroundColor: "#d4f4dd",
-    color: "#1f8e4d",
+  endOfList: {
     fontSize: 11,
-    fontWeight: "800",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  endText: {
-    color: "#8f9ba7",
+    color: "#999",
     textAlign: "center",
-    marginTop: 8,
-    fontSize: 12,
-    paddingVertical: 16,
+    marginTop: 16,
+    fontWeight: "500",
   },
 });
