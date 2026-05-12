@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -30,6 +31,10 @@ export default function LoginScreen() {
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(
     null,
   );
+  const [resetPasswordModalVisible, setResetPasswordModalVisible] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   // Alert state
   const [alertVisible, setAlertVisible] = useState(false);
@@ -142,6 +147,9 @@ export default function LoginScreen() {
     } catch (error) {
       console.error("Failed to store user data in AsyncStorage:", error);
     }
+    } catch (error) {
+      console.error("Failed to store user data in AsyncStorage:", error);
+    }
 
     if (user.role === "admin") {
       router.push("/admin");
@@ -153,6 +161,63 @@ export default function LoginScreen() {
         params: { studentId: user.id },
       });
     }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!resetEmail.trim()) {
+      setAlertConfig({
+        title: "Input Required",
+        message: "Please enter your email or ID to reset your password.",
+        type: "warning",
+        buttons: [
+          {
+            text: "OK",
+            onPress: () => setAlertVisible(false),
+            style: "default",
+          },
+        ],
+      });
+      setAlertVisible(true);
+      return;
+    }
+
+    setResetLoading(true);
+    const result = await AuthService.sendPasswordReset(resetEmail);
+    setResetLoading(false);
+
+    if (result.success) {
+      setResetSuccess(true);
+      setAlertConfig({
+        title: "Success",
+        message: result.message,
+        type: "success",
+        buttons: [
+          {
+            text: "OK",
+            onPress: () => {
+              setAlertVisible(false);
+              setResetPasswordModalVisible(false);
+              setResetEmail("");
+            },
+            style: "default",
+          },
+        ],
+      });
+    } else {
+      setAlertConfig({
+        title: "Error",
+        message: result.message,
+        type: "error",
+        buttons: [
+          {
+            text: "OK",
+            onPress: () => setAlertVisible(false),
+            style: "default",
+          },
+        ],
+      });
+    }
+    setAlertVisible(true);
   };
 
   return (
@@ -191,9 +256,6 @@ export default function LoginScreen() {
                 <View style={styles.heroCopy}>
                   <Text style={styles.heroEyebrow}>Campus Access</Text>
                   <Text style={styles.heroTitle}>QCU Parking System</Text>
-                  <Text style={styles.heroSubtitle}>
-                    Sign in to access your student, guard, or admin portal.
-                  </Text>
                 </View>
                 <View style={styles.heroBadge}>
                   <Image
@@ -201,25 +263,6 @@ export default function LoginScreen() {
                     style={styles.heroBadgeImage}
                     resizeMode="contain"
                   />
-                </View>
-              </View>
-
-              <View style={styles.heroPills}>
-                <View style={styles.heroPill}>
-                  <Ionicons
-                    name="shield-checkmark-outline"
-                    size={16}
-                    color="#1f8e4d"
-                  />
-                  <Text style={styles.heroPillText}>Secure portal</Text>
-                </View>
-                <View style={styles.heroPillSecondary}>
-                  <Ionicons
-                    name="phone-portrait-outline"
-                    size={16}
-                    color="#fff"
-                  />
-                  <Text style={styles.heroPillTextSecondary}>Mobile ready</Text>
                 </View>
               </View>
             </View>
@@ -234,12 +277,12 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.label}>Email or Student ID</Text>
+                <Text style={styles.label}>Email, Student ID, or Employee ID</Text>
                 <View style={styles.inputWrapper}>
                   <Ionicons name="person-outline" size={18} color="#7d8a99" />
                   <TextInput
                     style={styles.input}
-                    placeholder="Enter your ID or email"
+                    placeholder="Enter your email or ID"
                     placeholderTextColor="#b0b7c1"
                     value={username}
                     onChangeText={setUsername}
@@ -302,19 +345,8 @@ export default function LoginScreen() {
               <TouchableOpacity
                 style={styles.forgotButton}
                 onPress={() => {
-                  setAlertConfig({
-                    title: "Password Recovery",
-                    message: "Feature coming soon. Contact support.",
-                    type: "info",
-                    buttons: [
-                      {
-                        text: "OK",
-                        onPress: () => setAlertVisible(false),
-                        style: "default",
-                      },
-                    ],
-                  });
-                  setAlertVisible(true);
+                  setResetPasswordModalVisible(true);
+                  setResetSuccess(false);
                 }}
               >
                 <Text style={styles.forgotText}>Forgot Password?</Text>
@@ -351,6 +383,95 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={resetPasswordModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setResetPasswordModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.resetModalContainer}>
+            <View style={styles.resetModalHeader}>
+              <Text style={styles.resetModalTitle}>Reset Password</Text>
+              <TouchableOpacity
+                onPress={() => setResetPasswordModalVisible(false)}
+                style={styles.resetModalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.resetModalContent}>
+              {resetSuccess ? (
+                <View style={styles.successContainer}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={60}
+                    color="#1f8e4d"
+                  />
+                  <Text style={styles.successTitle}>Email Sent!</Text>
+                  <Text style={styles.successMessage}>
+                    Check your email for password reset instructions.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.resetLabel}>
+                    Enter your email or ID to receive a password reset link.
+                  </Text>
+
+                  <View style={styles.resetInputGroup}>
+                    <Text style={styles.resetInputLabel}>Email or ID</Text>
+                    <View style={styles.resetInputWrapper}>
+                      <Ionicons
+                        name="mail-outline"
+                        size={18}
+                        color="#7d8a99"
+                      />
+                      <TextInput
+                        style={styles.resetInput}
+                        placeholder="Enter your email or student/employee ID"
+                        placeholderTextColor="#b0b7c1"
+                        value={resetEmail}
+                        onChangeText={setResetEmail}
+                        autoCapitalize="none"
+                        editable={!resetLoading}
+                      />
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.resetButton,
+                      resetLoading && styles.resetButtonDisabled,
+                    ]}
+                    onPress={handlePasswordReset}
+                    disabled={resetLoading}
+                    activeOpacity={0.85}
+                  >
+                    {resetLoading ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.resetButtonText}>
+                        Send Reset Link
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.resetCancelButton}
+                    onPress={() => setResetPasswordModalVisible(false)}
+                    disabled={resetLoading}
+                  >
+                    <Text style={styles.resetCancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -627,5 +748,129 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
     marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  resetModalContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    width: "85%",
+    maxWidth: 420,
+    maxHeight: "80%",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+  },
+  resetModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5ece7",
+  },
+  resetModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#0f2818",
+  },
+  resetModalCloseButton: {
+    padding: 8,
+    marginRight: -8,
+  },
+  resetModalContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+  },
+  resetLabel: {
+    fontSize: 14,
+    color: "#62707d",
+    marginBottom: 20,
+    lineHeight: 21,
+  },
+  resetInputGroup: {
+    marginBottom: 20,
+  },
+  resetInputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1f8e4d",
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  resetInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e5ece7",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: "#f8fbf9",
+  },
+  resetInput: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: "#0f2818",
+  },
+  resetButton: {
+    backgroundColor: "#1f8e4d",
+    borderRadius: 12,
+    paddingVertical: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+    shadowColor: "#1f8e4d",
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  resetButtonDisabled: {
+    opacity: 0.6,
+  },
+  resetButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  resetCancelButton: {
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "#e5ece7",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  resetCancelButtonText: {
+    color: "#62707d",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  successContainer: {
+    alignItems: "center",
+    paddingVertical: 32,
+  },
+  successTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1f8e4d",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  successMessage: {
+    fontSize: 14,
+    color: "#62707d",
+    textAlign: "center",
+    lineHeight: 21,
   },
 });

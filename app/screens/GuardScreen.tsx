@@ -2,7 +2,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { Camera, CameraView } from "expo-camera";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
+    Animated,
     Animated,
     Platform,
     SafeAreaView,
@@ -16,8 +18,13 @@ import {
 } from "react-native";
 import { AlertAction, CustomAlert } from "../../components/CustomAlert";
 import { LoaderComponent } from "../../components/LoaderComponent";
+import { LoaderComponent } from "../../components/LoaderComponent";
 import { processGuardEntry } from "../../services/guardService";
 import { AuthService } from "../../services/authService";
+import { useAuth } from "../../services/authContext";
+import { useGuardNotifications } from "../../hooks/useNotifications";
+import { ScanNotificationStack } from "../../components/ScanNotificationBanner";
+import { NotificationHistoryModal } from "../../components/NotificationHistoryModal";
 
 type ScannedPayload = {
   app?: string;
@@ -36,6 +43,7 @@ function parseScannedPayload(data: string): ScannedPayload | null {
       return parsed as ScannedPayload;
     }
   } catch {
+  } catch {
     return null;
   }
 
@@ -44,6 +52,7 @@ function parseScannedPayload(data: string): ScannedPayload | null {
 
 export default function GuardScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [plate, setPlate] = useState("");
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scannedData, setScannedData] = useState<string | null>(null);
@@ -51,6 +60,12 @@ export default function GuardScreen() {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Get notifications for this guard
+  const { notifications, clearNotification } = useGuardNotifications(user?.id || null);
+
+  // History modal state
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
 
   // Alert state
   const [alertVisible, setAlertVisible] = useState(false);
@@ -110,7 +125,7 @@ export default function GuardScreen() {
         role: parsed.role,
         plateNumber: parsed.plateNumber ?? undefined,
         method: "QR",
-      });
+      }, user?.id);
 
       if (result.success) {
         const actionLabel =
@@ -151,6 +166,7 @@ export default function GuardScreen() {
         });
       }
       setAlertVisible(true);
+    } catch {
     } catch {
       setAlertConfig({
         title: "Error",
@@ -196,7 +212,7 @@ export default function GuardScreen() {
         plateNumber: trimmedPlate.toUpperCase(),
         method: "MANUAL",
         role: "visitor",
-      });
+      }, user?.id);
 
       if (result.success) {
         const actionLabel =
@@ -233,6 +249,7 @@ export default function GuardScreen() {
       }
       setAlertVisible(true);
       setPlate("");
+    } catch {
     } catch {
       setAlertConfig({
         title: "Error",
@@ -350,6 +367,89 @@ export default function GuardScreen() {
     setAlertVisible(true);
   };
 
+  const handleLogout = async () => {
+    setAlertConfig({
+      title: "Logout Confirmation",
+      message: "Are you sure you want to logout? You will need to sign in again.",
+      type: "warning",
+      buttons: [
+        {
+          text: "Cancel",
+          onPress: () => setAlertVisible(false),
+          style: "cancel",
+        },
+        {
+          text: "Yes, Logout",
+          onPress: async () => {
+            setAlertVisible(false);
+            try {
+              setLogoutLoading(true);
+              // Animate out before logout
+              Animated.parallel([
+                Animated.timing(fadeAnim, {
+                  toValue: 0,
+                  duration: 400,
+                  useNativeDriver: true,
+                }),
+                Animated.timing(scaleAnim, {
+                  toValue: 0.8,
+                  duration: 400,
+                  useNativeDriver: true,
+                }),
+              ]).start(async () => {
+                // Give loader time to render
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                // Perform logout
+                const result = await AuthService.logout();
+                if (result.success) {
+                  router.replace("/");
+                } else {
+                  setAlertConfig({
+                    title: "Logout Error",
+                    message: result.message || "Logout failed",
+                    type: "error",
+                    buttons: [
+                      {
+                        text: "OK",
+                        onPress: () => setAlertVisible(false),
+                        style: "default",
+                      },
+                    ],
+                  });
+                  setAlertVisible(true);
+                  setLogoutLoading(false);
+                  // Reset animations if logout failed
+                  fadeAnim.setValue(1);
+                  scaleAnim.setValue(1);
+                }
+              });
+            } catch {
+              setAlertConfig({
+                title: "Error",
+                message: "An error occurred during logout",
+                type: "error",
+                buttons: [
+                  {
+                    text: "OK",
+                    onPress: () => setAlertVisible(false),
+                    style: "default",
+                  },
+                ],
+              });
+              setAlertVisible(true);
+              setLogoutLoading(false);
+              // Reset animations on error
+              fadeAnim.setValue(1);
+              scaleAnim.setValue(1);
+            }
+          },
+          style: "destructive",
+        },
+      ],
+    });
+    setAlertVisible(true);
+  };
+
   const cameraStatusLabel =
     hasPermission === null ? "Waiting" : hasPermission ? "Ready" : "Denied";
   const cameraStatusText =
@@ -373,6 +473,11 @@ export default function GuardScreen() {
         type={alertConfig.type}
         buttons={alertConfig.buttons}
       />
+      <ScanNotificationStack
+        notifications={notifications}
+        onDismiss={clearNotification}
+        onGuard={true}
+      />
       <StatusBar barStyle="light-content" backgroundColor="#1f8e4d" />
       <View style={styles.backgroundShapeTop} />
       <View style={styles.backgroundShapeBottom} />
@@ -390,6 +495,12 @@ export default function GuardScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.activityButton}
+          onPress={() => setHistoryModalVisible(true)}
+        >
+          <Ionicons name="notifications-outline" size={20} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.activityButton}
           onPress={handleLogout}
         >
           <Ionicons name="log-out-outline" size={20} color="#fff" />
@@ -400,6 +511,15 @@ export default function GuardScreen() {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
+        <Animated.View
+          style={[
+            styles.contentShell,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
         <Animated.View
           style={[
             styles.contentShell,
@@ -506,6 +626,12 @@ export default function GuardScreen() {
           </View>
         </Animated.View>
       </ScrollView>
+      <NotificationHistoryModal
+        visible={historyModalVisible}
+        onClose={() => setHistoryModalVisible(false)}
+        guardId={user?.id}
+        isGuard={true}
+      />
     </SafeAreaView>
   );
 }
