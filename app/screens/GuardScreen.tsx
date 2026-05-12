@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { AlertAction, CustomAlert } from "../../components/CustomAlert";
 import { processGuardEntry } from "../../services/guardService";
+import { AuthService } from "../../services/authService";
 
 type ScannedPayload = {
   app?: string;
@@ -45,6 +46,7 @@ export default function GuardScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scannedData, setScannedData] = useState<string | null>(null);
   const scannedPayload = scannedData ? parseScannedPayload(scannedData) : null;
+  const [logoutLoading, setLogoutLoading] = useState(false);
 
   // Alert state
   const [alertVisible, setAlertVisible] = useState(false);
@@ -261,6 +263,32 @@ export default function GuardScreen() {
     setAlertVisible(true);
   };
 
+  const handleLogout = async () => {
+    setAlertConfig({
+      title: "Logout",
+      message: "Are you sure you want to logout?",
+      type: "warning",
+      buttons: [
+        {
+          text: "Cancel",
+          onPress: () => setAlertVisible(false),
+          style: "cancel",
+        },
+        {
+          text: "Yes, Logout",
+          onPress: async () => {
+            setAlertVisible(false);
+            setLogoutLoading(true);
+            await AuthService.logout();
+            router.replace("/");
+          },
+          style: "destructive",
+        },
+      ],
+    });
+    setAlertVisible(true);
+  };
+
   const cameraStatusLabel =
     hasPermission === null ? "Waiting" : hasPermission ? "Ready" : "Denied";
   const cameraStatusText =
@@ -284,12 +312,6 @@ export default function GuardScreen() {
       <View style={styles.backgroundShapeBottom} />
 
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={20} color="#fff" />
-        </TouchableOpacity>
         <View style={styles.headerCopy}>
           <Text style={styles.headerTitle}>Guard Portal</Text>
           <Text style={styles.headerSubtitle}>Gate Scanner</Text>
@@ -300,7 +322,12 @@ export default function GuardScreen() {
         >
           <Ionicons name="bar-chart-outline" size={20} color="#fff" />
         </TouchableOpacity>
-        <Ionicons name="scan-outline" size={26} color="#fff" />
+        <TouchableOpacity
+          style={styles.activityButton}
+          onPress={handleLogout}
+        >
+          <Ionicons name="log-out-outline" size={20} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
