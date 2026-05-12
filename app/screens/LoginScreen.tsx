@@ -252,7 +252,7 @@ export default function LoginScreen() {
               <View style={styles.heroTopRow}>
                 <View style={styles.heroCopy}>
                   <Text style={styles.heroEyebrow}>Campus Access</Text>
-                  <Text style={styles.heroTitle}>QCU Parking System</Text>
+                  <Text style={styles.heroTitle}>QCU Parking Monitoring System</Text>
                 </View>
                 <View style={styles.heroBadge}>
                   <Image
