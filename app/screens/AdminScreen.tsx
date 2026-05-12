@@ -20,6 +20,7 @@ import {
   Modal,
   Alert,
   Animated,
+  Animated,
 } from "react-native";
 import { LoaderComponent } from "../../components/LoaderComponent";
 import { CustomAlert, AlertAction } from "../../components/CustomAlert";
@@ -36,12 +37,15 @@ import {
 } from "../../services/searchService";
 
 type AdminScreenType = "overview" | "users" | "audit-logs" | "new-account";
+type AdminScreenType = "overview" | "users" | "audit-logs" | "new-account";
 export default function AdminScreen() {
   const router = useRouter();
   const authContext = useAuth();
   const adminId = authContext?.user?.id;
 
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -61,6 +65,9 @@ export default function AdminScreen() {
   // ─────────────────────────────────────────────────────────────────────────
   const [currentScreen, setCurrentScreen] =
     useState<AdminScreenType>("overview");
+  const [userType, setUserType] = useState<
+    "students" | "faculty" | "staff" | "guards"
+  >("students");
   const [userType, setUserType] = useState<
     "students" | "faculty" | "staff" | "guards"
   >("students");
@@ -116,6 +123,7 @@ export default function AdminScreen() {
   );
   const displayedStaff = useMemo(
     () =>
+      searchAndSort(staffTrie.current, staff, searchQuery, sortKey, sortOrder),
       searchAndSort(staffTrie.current, staff, searchQuery, sortKey, sortOrder),
     [staff, searchQuery, sortKey, sortOrder],
   );
@@ -176,6 +184,13 @@ export default function AdminScreen() {
           AdminService.fetchStaff(),
           AdminService.fetchGuards(),
         ]);
+      const [studentsData, facultyData, staffData, guardsData] =
+        await Promise.all([
+          AdminService.fetchStudents(), // no query — fetch all
+          AdminService.fetchFaculty(),
+          AdminService.fetchStaff(),
+          AdminService.fetchGuards(),
+        ]);
       setStudents(studentsData);
       setFaculty(facultyData);
       setStaff(staffData);
@@ -188,6 +203,12 @@ export default function AdminScreen() {
       guardTrie.current = buildTrie(guardsData as any);
 
       // ── Populate Hash Set for duplicate detection ──────────────────
+      duplicateChecker.current.load([
+        ...studentsData,
+        ...facultyData,
+        ...staffData,
+        ...guardsData,
+      ]);
       duplicateChecker.current.load([
         ...studentsData,
         ...facultyData,
@@ -297,6 +318,46 @@ export default function AdminScreen() {
                   scaleAnim.setValue(1);
                 }
               });
+              // Animate out before logout
+              Animated.parallel([
+                Animated.timing(fadeAnim, {
+                  toValue: 0,
+                  duration: 400,
+                  useNativeDriver: true,
+                }),
+                Animated.timing(scaleAnim, {
+                  toValue: 0.8,
+                  duration: 400,
+                  useNativeDriver: true,
+                }),
+              ]).start(async () => {
+                // Give loader time to render
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                // Perform logout
+                const result = await AuthService.logout();
+                if (result.success) {
+                  router.replace("/");
+                } else {
+                  setLogoutLoading(false);
+                  setAlertConfig({
+                    title: "Logout Error",
+                    message:
+                      result.message || "Logout failed. Please try again.",
+                    type: "error",
+                    buttons: [
+                      {
+                        text: "OK",
+                        onPress: () => setAlertVisible(false),
+                        style: "default",
+                      },
+                    ],
+                  });
+                  setAlertVisible(true);
+                  // Reset animations if logout failed
+                  fadeAnim.setValue(1);
+                  scaleAnim.setValue(1);
+                }
+              });
             } catch (error) {
               console.error("Logout error:", error);
               setLogoutLoading(false);
@@ -313,6 +374,9 @@ export default function AdminScreen() {
                 ],
               });
               setAlertVisible(true);
+              // Reset animations on error
+              fadeAnim.setValue(1);
+              scaleAnim.setValue(1);
               // Reset animations on error
               fadeAnim.setValue(1);
               scaleAnim.setValue(1);
@@ -394,6 +458,11 @@ export default function AdminScreen() {
       }
     }
 
+    if (
+      newAccountRole === "faculty" ||
+      newAccountRole === "staff" ||
+      newAccountRole === "guard"
+    ) {
     if (
       newAccountRole === "faculty" ||
       newAccountRole === "staff" ||
@@ -552,6 +621,10 @@ export default function AdminScreen() {
                     styles.bar,
                     { height: `${Math.min(data.height, 100)}%` },
                   ]}
+                  style={[
+                    styles.bar,
+                    { height: `${Math.min(data.height, 100)}%` },
+                  ]}
                 />
               </View>
             ))
@@ -583,11 +656,14 @@ export default function AdminScreen() {
     const displayed =
       userType === "students"
         ? displayedStudents
+      userType === "students"
+        ? displayedStudents
         : userType === "faculty"
           ? displayedFaculty
           : userType === "staff"
             ? displayedStaff
             : displayedGuards;
+
 
     return (
       <ScrollView contentContainerStyle={styles.container}>
@@ -1035,6 +1111,7 @@ export default function AdminScreen() {
         <View style={styles.auditLogsList}>
           {loadingAnalytics ? (
             <View style={styles.loadingContainer}>
+              <LoaderComponent visible={true} message="Loading audit logs..." />
               <LoaderComponent visible={true} message="Loading audit logs..." />
             </View>
           ) : displayedLogs.length > 0 ? (
@@ -1705,6 +1782,11 @@ export default function AdminScreen() {
         ? Math.max(...parkingHoursData.map((d) => d.count), 1)
         : 160;
 
+    const maxCount =
+      parkingHoursData.length > 0
+        ? Math.max(...parkingHoursData.map((d) => d.count), 1)
+        : 160;
+
     // Smart Y-axis scaling — use smaller increments for low data
     let yAxisMax;
     if (maxCount <= 10) {
@@ -1735,9 +1817,23 @@ export default function AdminScreen() {
             <Text style={styles.modalSubtitle}>
               Vehicle volume over time today
             </Text>
+            <Text style={styles.modalSubtitle}>
+              Vehicle volume over time today
+            </Text>
 
             <View style={styles.expandedChartContainer}>
               <View style={styles.yAxisLabels}>
+                {[
+                  yAxisMax,
+                  (yAxisMax * 3) / 4,
+                  yAxisMax / 2,
+                  yAxisMax / 4,
+                  0,
+                ].map((val, idx) => (
+                  <Text key={idx} style={styles.yAxisLabel}>
+                    {Math.round(val)}
+                  </Text>
+                ))}
                 {[
                   yAxisMax,
                   (yAxisMax * 3) / 4,

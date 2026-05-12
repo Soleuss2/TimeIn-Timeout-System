@@ -165,6 +165,9 @@ export default function StudentScreen() {
         const collectionName =
           currentUser.role === "student"
             ? "students"
+        const collectionName =
+          currentUser.role === "student"
+            ? "students"
             : currentUser.role === "faculty"
               ? "faculty"
               : currentUser.role === "staff"
@@ -436,6 +439,8 @@ export default function StudentScreen() {
                   useNativeDriver: true,
                 }),
               ]).start(async () => {
+                // Give loader time to render
+                await new Promise((resolve) => setTimeout(resolve, 500));
                 // Give loader time to render
                 await new Promise((resolve) => setTimeout(resolve, 500));
                 // Perform logout

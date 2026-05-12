@@ -970,11 +970,15 @@ export const AdminService = {
       const timeLogsRef = collection(db, "TimeLogs");
 
       // Build query constraints based on date range
+
+      // Build date range queries if dates provided
       let constraints: any[] = [];
+
 
       if (dateFrom) {
         constraints.push(where("timeIn", ">=", dateFrom));
       }
+
 
       if (dateTo) {
         const endDate = new Date(dateTo);
@@ -986,6 +990,7 @@ export const AdminService = {
 
       const q = query(timeLogsRef, ...constraints);
       const logsSnapshot = await getDocs(q);
+
 
       const allEvents: AuditLog[] = [];
 
@@ -1011,6 +1016,7 @@ export const AdminService = {
             minute: "2-digit",
             hour12: true,
           });
+
 
           const dateString = timestamp.toLocaleDateString("en-US", {
             month: "short",
@@ -1042,6 +1048,7 @@ export const AdminService = {
             minute: "2-digit",
             hour12: true,
           });
+
 
           const dateString = timestamp.toLocaleDateString("en-US", {
             month: "short",

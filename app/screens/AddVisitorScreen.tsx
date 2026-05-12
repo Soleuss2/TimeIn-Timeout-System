@@ -40,6 +40,8 @@ export default function AddVisitorScreen() {
   const [visitorName, setVisitorName] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
   const [vehicleType, setVehicleType] = useState("");
+  const [plateNumber, setPlateNumber] = useState("");
+  const [vehicleType, setVehicleType] = useState("");
   const [visitPurpose, setVisitPurpose] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -454,11 +456,17 @@ export default function AddVisitorScreen() {
               style={[
                 styles.input,
                 focusedField === "name" && styles.inputFocused,
+                focusedField === "name" && styles.inputFocused,
               ]}
+              placeholder="e.g. Juan Dela Cruz"
+              placeholderTextColor="#c0c9d0"
               placeholder="e.g. Juan Dela Cruz"
               placeholderTextColor="#c0c9d0"
               value={visitorName}
               onChangeText={setVisitorName}
+              onFocus={() => setFocusedField("name")}
+              onBlur={() => setFocusedField(null)}
+              returnKeyType="next"
               onFocus={() => setFocusedField("name")}
               onBlur={() => setFocusedField(null)}
               returnKeyType="next"
@@ -486,6 +494,10 @@ export default function AddVisitorScreen() {
             />
           </View>
 
+          {/* Vehicle Type — animated dropdown */}
+          <View style={[styles.fieldGroup, { zIndex: 10 }]}>
+            <Text style={styles.fieldLabel}>VEHICLE TYPE</Text>
+            <TouchableOpacity
           {/* Vehicle Type — animated dropdown */}
           <View style={[styles.fieldGroup, { zIndex: 10 }]}>
             <Text style={styles.fieldLabel}>VEHICLE TYPE</Text>
@@ -597,6 +609,7 @@ export default function AddVisitorScreen() {
             )}
           </TouchableOpacity>
         </Animated.View>
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -609,13 +622,40 @@ const styles = StyleSheet.create({
   },
 
   // ── Scroll container ──
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f2f5f3",
+  },
+
+  // ── Scroll container ──
   container: {
     backgroundColor: "#f2f5f3",
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 48,
     flexGrow: 1,
+    backgroundColor: "#f2f5f3",
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 48,
+    flexGrow: 1,
   },
+
+  // ── White card ──
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 26,
+    marginBottom: 22,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  cardHeaderRow: {
 
   // ── White card ──
   card: {
@@ -644,6 +684,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#f2f5f3",
     justifyContent: "center",
     alignItems: "center",
+    gap: 14,
+    marginBottom: 18,
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#f2f5f3",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardTitle: {
+    fontSize: 19,
+    fontWeight: "900",
+    color: "#14251b",
+    letterSpacing: -0.2,
   },
   cardTitle: {
     fontSize: 19,
@@ -972,5 +1028,96 @@ const styles = StyleSheet.create({
     color: "#8f9ba7",
     fontSize: 13,
     fontWeight: "600",
+  },
+  dropdownOptionTextActive: {
+    color: "#1f8e4d",
+    fontWeight: "800",
+  },
+
+  // ── Success modal ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.38)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  successSheet: {
+    backgroundColor: "#fff",
+    borderRadius: 28,
+    paddingHorizontal: 28,
+    paddingTop: 32,
+    paddingBottom: 24,
+    width: "100%",
+    maxWidth: 400,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  successIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#e8f5ee",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  successTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#14251b",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  successName: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1f2d3d",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  successPlatePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#e8f5ee",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginBottom: 14,
+  },
+  successPlateText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1f8e4d",
+    letterSpacing: 1,
+  },
+  successHint: {
+    fontSize: 13,
+    color: "#8f9ba7",
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  successButton: {
+    backgroundColor: "#1f8e4d",
+    borderRadius: 16,
+    paddingVertical: 16,
+    width: "100%",
+    alignItems: "center",
+    shadowColor: "#1f8e4d",
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  successButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
 });

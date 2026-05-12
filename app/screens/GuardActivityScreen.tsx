@@ -13,6 +13,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { fetchGuardActivityLogs } from "../../services/guardService";
 
@@ -104,6 +105,15 @@ export default function GuardActivityScreen() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [dateFilter, setDateFilter] = useState<(typeof DATE_OPTIONS)[number]>(
+    DATE_OPTIONS[0],
+  );
+  const [entryFilter, setEntryFilter] = useState<
+    (typeof ENTRY_OPTIONS)[number]
+  >(ENTRY_OPTIONS[0]);
+  const [vehicleFilter, setVehicleFilter] = useState<
+    (typeof VEHICLE_OPTIONS)[number]
+  >(VEHICLE_OPTIONS[0]);
   const [dateFilter, setDateFilter] = useState<(typeof DATE_OPTIONS)[number]>(
     DATE_OPTIONS[0],
   );
@@ -211,6 +221,8 @@ export default function GuardActivityScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Activity Logs</Text>
         <View style={{ width: 20 }} />
+        <Text style={styles.headerTitle}>Activity Logs</Text>
+        <View style={{ width: 20 }} />
       </View>
 
       <ScrollView
@@ -221,7 +233,17 @@ export default function GuardActivityScreen() {
           <View style={styles.statCard}>
             <View style={styles.statCardIcon}>
               <Ionicons name="car-sport" size={20} color="#1f8e4d" />
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <View style={styles.statCardIcon}>
+              <Ionicons name="car-sport" size={20} color="#1f8e4d" />
             </View>
+            <Text style={styles.statNumber}>{totalVehicles}</Text>
+            <Text style={styles.statLabel}>Total Vehicles</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View style={styles.statCardIcon}>
+              <Ionicons name="location" size={20} color="#1f8e4d" />
             <Text style={styles.statNumber}>{totalVehicles}</Text>
             <Text style={styles.statLabel}>Total Vehicles</Text>
           </View>
@@ -240,7 +262,33 @@ export default function GuardActivityScreen() {
             <Text style={styles.statLabel}>Departed</Text>
           </View>
         </View>
+            <Text style={styles.statNumber}>{insideCount}</Text>
+            <Text style={styles.statLabel}>Inside Campus</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View style={styles.statCardIcon}>
+              <Ionicons name="exit" size={20} color="#1f8e4d" />
+            </View>
+            <Text style={styles.statNumber}>{departedCount}</Text>
+            <Text style={styles.statLabel}>Departed</Text>
+          </View>
+        </View>
 
+        <View style={styles.searchSection}>
+          <Ionicons
+            name="search"
+            size={20}
+            color="#999"
+            style={styles.searchIcon}
+          />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by plate number, name or ID..."
+            placeholderTextColor="#999"
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
         <View style={styles.searchSection}>
           <Ionicons
             name="search"
@@ -683,22 +731,31 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#f5f5f5",
+    backgroundColor: "#f5f5f5",
   },
   header: {
     backgroundColor: "#1f8e4d",
     paddingHorizontal: 16,
     paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    justifyContent: "space-between",
   },
   backButton: {
+    padding: 8,
     padding: 8,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "600",
     color: "#fff",
+    flex: 1,
+    textAlign: "center",
     flex: 1,
     textAlign: "center",
   },
@@ -706,9 +763,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingBottom: 32,
+  container: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: 32,
   },
   statsGrid: {
     flexDirection: "row",
+    justifyContent: "space-between",
     justifyContent: "space-between",
     gap: 12,
     marginBottom: 16,
@@ -718,14 +780,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 8,
     padding: 12,
+    borderRadius: 8,
+    padding: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   statCardIcon: {
     marginBottom: 6,
   },
+  statCardIcon: {
+    marginBottom: 6,
+  },
+  statNumber: {
   statNumber: {
     fontSize: 24,
+    fontWeight: "700",
+    color: "#1f8e4d",
     fontWeight: "700",
     color: "#1f8e4d",
     marginBottom: 4,
@@ -735,10 +805,22 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
     fontWeight: "500",
+    color: "#666",
+    textAlign: "center",
+    fontWeight: "500",
   },
+  searchSection: {
   searchSection: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    height: 40,
+  },
+  searchIcon: {
+    marginRight: 8,
     backgroundColor: "#fff",
     borderRadius: 8,
     marginBottom: 12,
@@ -751,8 +833,10 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 13,
+    fontSize: 13,
     color: "#333",
   },
+  filterBarRow: {
   filterBarRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -761,6 +845,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
     position: "relative",
   },
+  filterDropdownWrapper: {
   filterDropdownWrapper: {
     flex: 1,
     zIndex: 100,

@@ -147,6 +147,9 @@ export default function LoginScreen() {
     } catch (error) {
       console.error("Failed to store user data in AsyncStorage:", error);
     }
+    } catch (error) {
+      console.error("Failed to store user data in AsyncStorage:", error);
+    }
 
     if (user.role === "admin") {
       router.push("/admin");
