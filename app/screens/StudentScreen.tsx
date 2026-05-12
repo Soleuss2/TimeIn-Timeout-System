@@ -162,13 +162,22 @@ export default function StudentScreen() {
 
         setStudent(currentUser);
 
-        // Fetch additional student data from Firestore
-        const studentDocRef = doc(db, "students", currentUser.id);
-        const studentDoc = await getDoc(studentDocRef);
+        // Fetch additional user data from Firestore based on their role
+        const collectionName = 
+          currentUser.role === "student" 
+            ? "students" 
+            : currentUser.role === "faculty"
+              ? "faculty"
+              : currentUser.role === "staff"
+                ? "staff"
+                : "students"; // fallback to students
 
-        if (studentDoc.exists()) {
-          const studentData = studentDoc.data();
-          setPlateNumber(studentData.plateNumber || null);
+        const userDocRef = doc(db, collectionName, currentUser.id);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setPlateNumber(userData.plateNumber || null);
         }
       } catch (error) {
         setAlertConfig({
@@ -524,7 +533,7 @@ export default function StudentScreen() {
               <View style={styles.heroDecorBottom} />
               <View style={styles.heroTopRow}>
                 <View style={styles.heroCopy}>
-                  <Text style={styles.heroEyebrow}>Student Portal</Text>
+                  <Text style={styles.heroEyebrow}>Campus Parking Access Portal</Text>
                   <Text style={styles.heroTitle}>Digital Access Pass</Text>
                   <Text style={styles.heroSubtitle}>
                     Your QR code is ready for guard verification at the campus

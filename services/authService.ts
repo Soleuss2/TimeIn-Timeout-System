@@ -12,7 +12,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: "student" | "guard" | "admin";
+  role: "student" | "faculty" | "staff" | "guard" | "admin";
   studentId?: string;
 }
 
@@ -94,7 +94,7 @@ export const AuthService = {
 
       // Get user profile from Firestore - try all collections
       let userDoc: any = null;
-      let userRole: "student" | "guard" | "admin" | null = null;
+      let userRole: "student" | "faculty" | "staff" | "guard" | "admin" | null = null;
 
       // Try students collection
       let docRef = doc(db, "students", firebaseUser.uid);
@@ -102,6 +102,26 @@ export const AuthService = {
       if (tempDoc.exists()) {
         userDoc = tempDoc;
         userRole = "student";
+      }
+
+      // Try faculty collection if not found
+      if (!userDoc) {
+        docRef = doc(db, "faculty", firebaseUser.uid);
+        tempDoc = await getDoc(docRef);
+        if (tempDoc.exists()) {
+          userDoc = tempDoc;
+          userRole = "faculty";
+        }
+      }
+
+      // Try staff collection if not found
+      if (!userDoc) {
+        docRef = doc(db, "staff", firebaseUser.uid);
+        tempDoc = await getDoc(docRef);
+        if (tempDoc.exists()) {
+          userDoc = tempDoc;
+          userRole = "staff";
+        }
       }
 
       // Try guards collection if not found
@@ -384,7 +404,7 @@ export const AuthService = {
       await firebaseUser.reload();
 
       let userDoc: any = null;
-      let userRole: "student" | "guard" | "admin" | null = null;
+      let userRole: "student" | "faculty" | "staff" | "guard" | "admin" | null = null;
 
       // Try students collection
       let docRef = doc(db, "students", firebaseUser.uid);
@@ -392,6 +412,26 @@ export const AuthService = {
       if (tempDoc.exists()) {
         userDoc = tempDoc;
         userRole = "student";
+      }
+
+      // Try faculty collection if not found
+      if (!userDoc) {
+        docRef = doc(db, "faculty", firebaseUser.uid);
+        tempDoc = await getDoc(docRef);
+        if (tempDoc.exists()) {
+          userDoc = tempDoc;
+          userRole = "faculty";
+        }
+      }
+
+      // Try staff collection if not found
+      if (!userDoc) {
+        docRef = doc(db, "staff", firebaseUser.uid);
+        tempDoc = await getDoc(docRef);
+        if (tempDoc.exists()) {
+          userDoc = tempDoc;
+          userRole = "staff";
+        }
       }
 
       // Try guards collection if not found
