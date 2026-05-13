@@ -31,6 +31,7 @@ type ScannedPayload = {
   username?: string;
   name?: string;
   plateNumber?: string | null;
+  vehicleType?: string;
 };
 
 function parseScannedPayload(data: string): ScannedPayload | null {
@@ -120,6 +121,7 @@ export default function GuardScreen() {
         name: parsed.name,
         role: parsed.role,
         plateNumber: parsed.plateNumber ?? undefined,
+        vehicleType: parsed.vehicleType,
         method: "QR",
       }, user?.id);
 

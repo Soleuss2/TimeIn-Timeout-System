@@ -1,5 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system";
+import * as XLSX from "xlsx";
 import React, {
   useState,
   useEffect,
@@ -71,6 +74,7 @@ export default function AdminScreen() {
   const [newAccountRole, setNewAccountRole] = useState<
     "student" | "faculty" | "staff" | "guard"
   >("student");
+  const [vehicleTypeDropdownOpen, setVehicleTypeDropdownOpen] = useState(false);
   const [showChartModal, setShowChartModal] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [creatingAccount, setCreatingAccount] = useState(false);
@@ -90,6 +94,27 @@ export default function AdminScreen() {
   const guardTrie = useRef<Trie>(new Trie());
   const duplicateChecker = useRef<DuplicateChecker>(new DuplicateChecker());
   // ─────────────────────────────────────────────────────────────────────────
+
+  // ════════════════════════════════════════════════════════════════════════════════
+  // ALGORITHM PIPELINE: COMBINED SEARCH (Trie + Levenshtein + Merge Sort)
+  // ════════════════════════════════════════════════════════════════════════════════
+  // 
+  // This pipeline orchestrates 3 algorithms working together:
+  // 
+  // 1. TRIE (Prefix Search) - O(k) where k = prefix length
+  //    - Instant prefix-based search as admin types
+  //    - Returns matching records from Trie nodes
+  // 
+  // 2. LEVENSHTEIN FALLBACK - O(m × n) if Trie finds nothing
+  //    - Fuzzy matching with threshold=2 edits
+  //    - Handles typos and misspellings
+  // 
+  // 3. MERGE SORT - O(n log n)
+  //    - Stable sorting of search results
+  //    - Sorts by name, studentId, createdAt, status
+  // 
+  // Result: Fast + Forgiving + Organized results
+  // ════════════════════════════════════════════════════════════════════════════════
 
   // Computed: run search + sort pipeline entirely in memory (no Firestore)
   const displayedStudents = useMemo(
@@ -155,13 +180,23 @@ export default function AdminScreen() {
   const [selectedAuditLog, setSelectedAuditLog] = useState<any | null>(null);
   // ─────────────────────────────────────────────────────────────────
 
+  // ── User detail modal state ─────────────────────────────────────
+  const [selectedUser, setSelectedUser] = useState<DirectoryUser | null>(null);
+  const [userDetailModalVisible, setUserDetailModalVisible] = useState(false);
+  const [editingUser, setEditingUser] = useState(false);
+  const [editingUserData, setEditingUserData] = useState<any>({});
+  const [updatingUser, setUpdatingUser] = useState(false);
+  // ─────────────────────────────────────────────────────────────────
+
   const totalStudents = students.length;
+  const totalFaculty = faculty.length;
+  const totalStaff = staff.length;
   const totalGuards = guards.length;
   const vehiclesToday = vehiclesCount;
 
   // Fetch ALL users once — Trie + Hash Set are built from this
   useEffect(() => {
-    if (currentScreen === "users") {
+    if (currentScreen === "users" || currentScreen === "overview") {
       fetchUsers();
     }
   }, [currentScreen]);
@@ -323,6 +358,136 @@ export default function AdminScreen() {
       ],
     });
     setAlertVisible(true);
+  };
+
+  const handleExportAuditLogs = async () => {
+    try {
+      setLoadingAnalytics(true);
+
+      // Filter logs based on current filters
+      let filteredLogs = filterAndSortAuditLogs(
+        auditLogs,
+        searchQuery,
+        "timestamp",
+        "desc",
+      );
+
+      // Apply date filter
+      if (auditDateFilter !== "All Date") {
+        const now = new Date();
+        const todayStart = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+        );
+        const yesterdayStart = new Date(todayStart);
+        yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+        filteredLogs = filteredLogs.filter((log: any) => {
+          const logTime = log.timestamp?.getTime?.() || 0;
+          if (auditDateFilter === "Today")
+            return logTime >= todayStart.getTime();
+          if (auditDateFilter === "Yesterday")
+            return (
+              logTime >= yesterdayStart.getTime() && logTime < todayStart.getTime()
+            );
+          return true;
+        });
+      }
+
+      // Apply entry type filter
+      if (auditEntryFilter !== "All Entry") {
+        const targetRole = auditEntryFilter.toLowerCase();
+        filteredLogs = filteredLogs.filter((log: any) => {
+          const logRole = (log.role || "").toLowerCase();
+          if (targetRole === "guest")
+            return logRole === "visitor" || logRole === "guest";
+          return logRole === targetRole;
+        });
+      }
+
+      // Apply vehicle type filter
+      if (auditVehicleFilter !== "All Vehicles") {
+        const knownTypes = ["car", "motorcycle", "ebike"];
+        filteredLogs = filteredLogs.filter((log: any) => {
+          const vType = (log.vehicleType || "").toLowerCase();
+          if (auditVehicleFilter === "Others") {
+            return !knownTypes.includes(vType);
+          }
+          return vType === auditVehicleFilter.toLowerCase();
+        });
+      }
+
+      // Prepare data for Excel
+      const excelData = filteredLogs.map((log: any) => ({
+        Plate: log.plate,
+        Name: log.name,
+        Role: log.role || "N/A",
+        Type: log.type === "time_in" || log.type === "IN" ? "CHECK IN" : "CHECK OUT",
+        "Vehicle Type": log.vehicleType || "N/A",
+        Time: log.time,
+        Date: log.timestamp
+          ? new Date(log.timestamp).toLocaleDateString()
+          : "N/A",
+      }));
+
+      // Create workbook and worksheet using XLSX
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Audit Logs");
+
+      // Set column widths
+      ws["!cols"] = [
+        { wch: 15 }, // Plate
+        { wch: 20 }, // Name
+        { wch: 12 }, // Role
+        { wch: 12 }, // Type
+        { wch: 15 }, // Vehicle Type
+        { wch: 20 }, // Time
+        { wch: 15 }, // Date
+      ];
+
+      // Generate Excel file
+      const wbout = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+      const filename = `Campus_AuditLogs_${new Date().toISOString().split("T")[0]}.xlsx`;
+
+      if (Platform.OS === "web") {
+        XLSX.writeFile(wb, filename);
+        setSuccessMessage(
+          `Export successful! Total entries: ${excelData.length}. The file has been downloaded.`,
+        );
+      } else {
+        // For mobile, save to file system and share
+        try {
+          const fileUri = (FileSystem.cacheDirectory || FileSystem.documentDirectory) + filename;
+          
+          await FileSystem.writeAsStringAsync(fileUri, wbout, {
+            encoding: "base64",
+          });
+
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(fileUri, {
+              mimeType:
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              dialogTitle: "Export Audit Logs",
+            });
+            setSuccessMessage(
+              `Export successful! Total entries: ${excelData.length}`,
+            );
+          } else {
+            setErrorMessage("Sharing is not available on this device");
+          }
+        } catch (fsError: any) {
+          console.error("FileSystem Error:", fsError);
+          setErrorMessage(`FileSystem Error: ${fsError.message}`);
+        }
+      }
+    } catch (error: any) {
+      console.error("Error exporting audit logs:", error);
+      setErrorMessage(`Export failed: ${error?.message || "Unknown error"}`);
+    } finally {
+      setLoadingAnalytics(false);
+    }
   };
 
   const handleNewAccountChange = (field: string, value: string) => {
@@ -516,24 +681,69 @@ export default function AdminScreen() {
         Here&apos;s the campus overview for today.
       </Text>
 
-      <View style={styles.overviewCard}>
+      <TouchableOpacity
+        style={styles.overviewCard}
+        activeOpacity={0.8}
+        onPress={() => {
+          setUserType("students");
+          setCurrentScreen("users");
+        }}
+      >
         <Text style={styles.overviewTitle}>Total Registered Students</Text>
         <Text style={styles.overviewValue}>
           {totalStudents.toLocaleString()}
         </Text>
+      </TouchableOpacity>
+
+      <View style={styles.statsGrid}>
+        <TouchableOpacity
+          style={styles.smallCard}
+          activeOpacity={0.8}
+          onPress={() => {
+            setUserType("faculty");
+            setCurrentScreen("users");
+          }}
+        >
+          <Ionicons name="school" size={28} color="#1f8e4d" />
+          <Text style={styles.smallCardLabel}>Total Faculty</Text>
+          <Text style={styles.smallCardValue}>{totalFaculty}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.smallCard}
+          activeOpacity={0.8}
+          onPress={() => {
+            setUserType("staff");
+            setCurrentScreen("users");
+          }}
+        >
+          <Ionicons name="briefcase" size={28} color="#1f8e4d" />
+          <Text style={styles.smallCardLabel}>Total Staff</Text>
+          <Text style={styles.smallCardValue}>{totalStaff}</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.statsGrid}>
-        <View style={styles.smallCard}>
+        <TouchableOpacity
+          style={styles.smallCard}
+          activeOpacity={0.8}
+          onPress={() => {
+            setUserType("guards");
+            setCurrentScreen("users");
+          }}
+        >
           <Ionicons name="shield-checkmark" size={28} color="#1f8e4d" />
           <Text style={styles.smallCardLabel}>Active Guards</Text>
           <Text style={styles.smallCardValue}>{totalGuards}</Text>
-        </View>
-        <View style={styles.smallCard}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.smallCard}
+          activeOpacity={0.8}
+          onPress={() => setShowChartModal(true)}
+        >
           <Ionicons name="car" size={28} color="#1f8e4d" />
           <Text style={styles.smallCardLabel}>Vehicles Today</Text>
           <Text style={styles.smallCardValue}>{vehiclesToday}</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       <TouchableOpacity
@@ -711,7 +921,20 @@ export default function AdminScreen() {
         ) : (
           <View style={styles.usersList}>
             {displayed.map((user) => (
-              <TouchableOpacity key={user.id} style={styles.userCard}>
+              <TouchableOpacity
+                key={user.id}
+                style={styles.userCard}
+                activeOpacity={0.7}
+                onPress={() => {
+                  setSelectedUser(user as DirectoryUser);
+                  setEditingUserData({
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                  });
+                  setEditingUser(false);
+                  setUserDetailModalVisible(true);
+                }}
+              >
                 <View style={styles.userInfo}>
                   <View style={styles.userAvatar}>
                     <Ionicons
@@ -796,7 +1019,26 @@ export default function AdminScreen() {
 
 
   const renderAuditLogsScreen = () => {
-    // ── ALGORITHM: filterAndSortAuditLogs + guard-style dropdown filters ──
+    // ════════════════════════════════════════════════════════════════════════════════
+    // ALGORITHM PIPELINE: AUDIT LOG FILTERING & SORTING
+    // ════════════════════════════════════════════════════════════════════════════════
+    // 
+    // Combines 3 algorithms for efficient audit log processing:
+    // 
+    // 1. HASH SET DEDUPLICATOR - O(1) per log, O(n) total
+    //    - Removes duplicate plate-timestamp entries
+    //    - Prevents duplicate logs from overlapping date range queries
+    // 
+    // 2. MERGE SORT - O(n log n)
+    //    - Stable sorting by timestamp (most recent first)
+    //    - Preserves insertion order for equal timestamps
+    // 
+    // 3. TEXT FILTER - O(n × m) where m = query length
+    //    - Searches plate, name, role fields for matches
+    //    - Case-insensitive substring matching
+    // 
+    // Result: Deduplicated + Sorted + Filtered audit logs
+    // ════════════════════════════════════════════════════════════════════════════════
     let filteredLogs = filterAndSortAuditLogs(
       auditLogs,
       searchQuery,
@@ -849,9 +1091,24 @@ export default function AdminScreen() {
 
     return (
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.screenTitle}>Master Audit Logs</Text>
-        <Text style={styles.screenSubtitle}>Campus-wide vehicle activity</Text>
-
+        <View style={styles.auditLogsHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.screenTitle}>Master Audit Logs</Text>
+            <Text style={styles.screenSubtitle}>Campus-wide vehicle activity</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.exportButton}
+            onPress={handleExportAuditLogs}
+            disabled={loadingAnalytics}
+          >
+            <Ionicons
+              name="download"
+              size={20}
+              color="#fff"
+            />
+            <Text style={styles.exportButtonText}>Export</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.searchBox}>
           <Ionicons
@@ -1315,7 +1572,10 @@ export default function AdminScreen() {
             styles.roleButton,
             newAccountRole === "student" && styles.roleButtonActive,
           ]}
-          onPress={() => setNewAccountRole("student")}
+          onPress={() => {
+            setNewAccountRole("student");
+            setVehicleTypeDropdownOpen(false);
+          }}
           disabled={creatingAccount}
         >
           <Ionicons
@@ -1337,7 +1597,10 @@ export default function AdminScreen() {
             styles.roleButton,
             newAccountRole === "faculty" && styles.roleButtonActive,
           ]}
-          onPress={() => setNewAccountRole("faculty")}
+          onPress={() => {
+            setNewAccountRole("faculty");
+            setVehicleTypeDropdownOpen(false);
+          }}
           disabled={creatingAccount}
         >
           <Ionicons
@@ -1359,7 +1622,10 @@ export default function AdminScreen() {
             styles.roleButton,
             newAccountRole === "staff" && styles.roleButtonActive,
           ]}
-          onPress={() => setNewAccountRole("staff")}
+          onPress={() => {
+            setNewAccountRole("staff");
+            setVehicleTypeDropdownOpen(false);
+          }}
           disabled={creatingAccount}
         >
           <Ionicons
@@ -1381,7 +1647,10 @@ export default function AdminScreen() {
             styles.roleButton,
             newAccountRole === "guard" && styles.roleButtonActive,
           ]}
-          onPress={() => setNewAccountRole("guard")}
+          onPress={() => {
+            setNewAccountRole("guard");
+            setVehicleTypeDropdownOpen(false);
+          }}
           disabled={creatingAccount}
         >
           <Ionicons
@@ -1475,30 +1744,43 @@ export default function AdminScreen() {
           />
 
           <Text style={styles.fieldLabel}>{"Vehicle Type"}</Text>
-          <View style={styles.vehicleTypeRow}>
-            {(["Car", "Motorcycle", "Ebike", "Others"] as const).map((type) => {
-              const isOthers = type === "Others";
-              const isActive = isOthers
-                ? !["Car", "Motorcycle", "Ebike"].includes(
-                    newAccountData.vehicleType,
-                  )
-                : newAccountData.vehicleType === type;
-              return (
+          <TouchableOpacity
+            style={[
+              styles.vehicleTypeDropdownBtn,
+              vehicleTypeDropdownOpen && styles.vehicleTypeDropdownBtnActive,
+            ]}
+            onPress={() => setVehicleTypeDropdownOpen(!vehicleTypeDropdownOpen)}
+            activeOpacity={0.85}
+          >
+            <Text
+              style={[
+                styles.vehicleTypeDropdownText,
+                !newAccountData.vehicleType && { color: "#9ca3af" },
+              ]}
+            >
+              {newAccountData.vehicleType || "Select vehicle type"}
+            </Text>
+            <Ionicons
+              name={vehicleTypeDropdownOpen ? "chevron-up" : "chevron-down"}
+              size={18}
+              color="#8f9ba7"
+            />
+          </TouchableOpacity>
+
+          {vehicleTypeDropdownOpen && (
+            <View style={styles.vehicleTypeDropdownMenu}>
+              {(["Car", "Motorcycle", "Ebike", "Others"] as const).map((type) => (
                 <TouchableOpacity
                   key={type}
                   style={[
-                    styles.vehicleTypeBtn,
-                    isActive && styles.vehicleTypeBtnActive,
+                    styles.vehicleTypeDropdownItem,
+                    newAccountData.vehicleType === type && styles.vehicleTypeDropdownItemActive,
                   ]}
                   onPress={() => {
-                    if (!creatingAccount) {
-                      handleNewAccountChange(
-                        "vehicleType",
-                        isOthers ? "Others" : type,
-                      );
-                    }
+                    handleNewAccountChange("vehicleType", type);
+                    setVehicleTypeDropdownOpen(false);
                   }}
-                  disabled={creatingAccount}
+                  activeOpacity={0.7}
                 >
                   <Ionicons
                     name={
@@ -1510,35 +1792,29 @@ export default function AdminScreen() {
                             ? "flash-outline"
                             : "pencil-outline"
                     }
-                    size={14}
-                    color={isActive ? "#fff" : "#6b7280"}
+                    size={16}
+                    color={newAccountData.vehicleType === type ? "#1f8e4d" : "#6b7280"}
                   />
                   <Text
                     style={[
-                      styles.vehicleTypeBtnText,
-                      isActive && styles.vehicleTypeBtnTextActive,
+                      styles.vehicleTypeDropdownItemText,
+                      newAccountData.vehicleType === type && styles.vehicleTypeDropdownItemTextActive,
                     ]}
                   >
                     {type}
                   </Text>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
+              ))}
+            </View>
+          )}
 
-          {!["Car", "Motorcycle", "Ebike"].includes(
-            newAccountData.vehicleType,
-          ) && (
+          {newAccountData.vehicleType === "Others" && (
             <TextInput
-              style={[styles.textInput, { marginTop: -8 }]}
+              style={styles.textInput}
               placeholder="Specify vehicle type..."
               placeholderTextColor="#d1d5db"
               editable={!creatingAccount}
-              value={
-                newAccountData.vehicleType === "Others"
-                  ? ""
-                  : newAccountData.vehicleType
-              }
+              value={newAccountData.vehicleType === "Others" ? "" : newAccountData.vehicleType}
               onChangeText={(value) =>
                 handleNewAccountChange("vehicleType", value || "Others")
               }
@@ -1573,30 +1849,43 @@ export default function AdminScreen() {
           />
 
           <Text style={styles.fieldLabel}>{"Vehicle Type"}</Text>
-          <View style={styles.vehicleTypeRow}>
-            {(["Car", "Motorcycle", "Ebike", "Others"] as const).map((type) => {
-              const isOthers = type === "Others";
-              const isActive = isOthers
-                ? !["Car", "Motorcycle", "Ebike"].includes(
-                    newAccountData.vehicleType,
-                  )
-                : newAccountData.vehicleType === type;
-              return (
+          <TouchableOpacity
+            style={[
+              styles.vehicleTypeDropdownBtn,
+              vehicleTypeDropdownOpen && styles.vehicleTypeDropdownBtnActive,
+            ]}
+            onPress={() => setVehicleTypeDropdownOpen(!vehicleTypeDropdownOpen)}
+            activeOpacity={0.85}
+          >
+            <Text
+              style={[
+                styles.vehicleTypeDropdownText,
+                !newAccountData.vehicleType && { color: "#9ca3af" },
+              ]}
+            >
+              {newAccountData.vehicleType || "Select vehicle type"}
+            </Text>
+            <Ionicons
+              name={vehicleTypeDropdownOpen ? "chevron-up" : "chevron-down"}
+              size={18}
+              color="#8f9ba7"
+            />
+          </TouchableOpacity>
+
+          {vehicleTypeDropdownOpen && (
+            <View style={styles.vehicleTypeDropdownMenu}>
+              {(["Car", "Motorcycle", "Ebike", "Others"] as const).map((type) => (
                 <TouchableOpacity
                   key={type}
                   style={[
-                    styles.vehicleTypeBtn,
-                    isActive && styles.vehicleTypeBtnActive,
+                    styles.vehicleTypeDropdownItem,
+                    newAccountData.vehicleType === type && styles.vehicleTypeDropdownItemActive,
                   ]}
                   onPress={() => {
-                    if (!creatingAccount) {
-                      handleNewAccountChange(
-                        "vehicleType",
-                        isOthers ? "Others" : type,
-                      );
-                    }
+                    handleNewAccountChange("vehicleType", type);
+                    setVehicleTypeDropdownOpen(false);
                   }}
-                  disabled={creatingAccount}
+                  activeOpacity={0.7}
                 >
                   <Ionicons
                     name={
@@ -1608,35 +1897,29 @@ export default function AdminScreen() {
                             ? "flash-outline"
                             : "pencil-outline"
                     }
-                    size={14}
-                    color={isActive ? "#fff" : "#6b7280"}
+                    size={16}
+                    color={newAccountData.vehicleType === type ? "#1f8e4d" : "#6b7280"}
                   />
                   <Text
                     style={[
-                      styles.vehicleTypeBtnText,
-                      isActive && styles.vehicleTypeBtnTextActive,
+                      styles.vehicleTypeDropdownItemText,
+                      newAccountData.vehicleType === type && styles.vehicleTypeDropdownItemTextActive,
                     ]}
                   >
                     {type}
                   </Text>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
+              ))}
+            </View>
+          )}
 
-          {!["Car", "Motorcycle", "Ebike"].includes(
-            newAccountData.vehicleType,
-          ) && (
+          {newAccountData.vehicleType === "Others" && (
             <TextInput
-              style={[styles.textInput, { marginTop: -8 }]}
+              style={styles.textInput}
               placeholder="Specify vehicle type..."
               placeholderTextColor="#d1d5db"
               editable={!creatingAccount}
-              value={
-                newAccountData.vehicleType === "Others"
-                  ? ""
-                  : newAccountData.vehicleType
-              }
+              value={newAccountData.vehicleType === "Others" ? "" : newAccountData.vehicleType}
               onChangeText={(value) =>
                 handleNewAccountChange("vehicleType", value || "Others")
               }
@@ -1698,6 +1981,390 @@ export default function AdminScreen() {
       </TouchableOpacity>
     </ScrollView>
   );
+
+  const renderUserDetailModal = () => {
+    if (!selectedUser) return null;
+
+    return (
+      <Modal
+        visible={userDetailModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setUserDetailModalVisible(false);
+          setEditingUser(false);
+        }}
+      >
+        <SafeAreaView style={styles.modalSafeArea}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                setUserDetailModalVisible(false);
+                setEditingUser(false);
+              }}
+            >
+              <Ionicons name="close" size={28} color="#1d2934" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>User Details</Text>
+            <View style={{ width: 28 }} />
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            {/* User Avatar Section */}
+            <View style={styles.userDetailAvatarSection}>
+              <View style={styles.userDetailAvatar}>
+                <Ionicons
+                  name={
+                    userType === "students"
+                      ? "person"
+                      : userType === "faculty"
+                        ? "school"
+                        : userType === "staff"
+                          ? "briefcase"
+                          : "shield"
+                  }
+                  size={48}
+                  color="#1f8e4d"
+                />
+              </View>
+              <Text style={styles.userDetailName}>
+                {`${selectedUser.firstName} ${selectedUser.lastName}`}
+              </Text>
+              <Text style={styles.userDetailRole}>
+                {selectedUser.role?.toUpperCase()}
+              </Text>
+              <View
+                style={[
+                  styles.userStatusBadge,
+                  {
+                    backgroundColor: selectedUser.isActive ? "#dcfce7" : "#fee2e2",
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.userStatusBadgeText,
+                    { color: selectedUser.isActive ? "#15803d" : "#991b1b" },
+                  ]}
+                >
+                  {selectedUser.isActive ? "ACTIVE" : "PENDING"}
+                </Text>
+              </View>
+            </View>
+
+            {/* User Details */}
+            <View style={styles.userDetailSection}>
+              <Text style={styles.userDetailSectionTitle}>Information</Text>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Email</Text>
+                <Text style={styles.detailValue}>{selectedUser.email}</Text>
+              </View>
+
+              {userType === "students" && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Student ID</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedUser.studentId || "N/A"}
+                  </Text>
+                </View>
+              )}
+
+              {(userType === "faculty" ||
+                userType === "staff" ||
+                userType === "guards") && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Employee ID</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedUser.employeeId || "N/A"}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Joined</Text>
+                <Text style={styles.detailValue}>
+                  {selectedUser.createdAt
+                    ? new Date(
+                        selectedUser.createdAt as any,
+                      ).toLocaleDateString()
+                    : "N/A"}
+                </Text>
+              </View>
+            </View>
+
+            {/* Edit Section */}
+            {editingUser && (
+              <View style={styles.userDetailSection}>
+                <Text style={styles.userDetailSectionTitle}>Edit Details</Text>
+
+                <View style={styles.editField}>
+                  <Text style={styles.editLabel}>First Name</Text>
+                  <TextInput
+                    style={styles.editInput}
+                    value={editingUserData.firstName}
+                    onChangeText={(value) =>
+                      setEditingUserData({
+                        ...editingUserData,
+                        firstName: value,
+                      })
+                    }
+                    placeholder="First Name"
+                    placeholderTextColor="#d1d5db"
+                  />
+                </View>
+
+                <View style={styles.editField}>
+                  <Text style={styles.editLabel}>Last Name</Text>
+                  <TextInput
+                    style={styles.editInput}
+                    value={editingUserData.lastName}
+                    onChangeText={(value) =>
+                      setEditingUserData({
+                        ...editingUserData,
+                        lastName: value,
+                      })
+                    }
+                    placeholder="Last Name"
+                    placeholderTextColor="#d1d5db"
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* Action Buttons */}
+            <View style={styles.userDetailActions}>
+              {!editingUser ? (
+                <>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => {
+                      setEditingUser(true);
+                      setErrorMessage("");
+                    }}
+                  >
+                    <Ionicons name="pencil" size={18} color="#fff" />
+                    <Text style={styles.actionButtonText}>Edit</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      {
+                        backgroundColor: selectedUser.isActive
+                          ? "#ef4444"
+                          : "#10b981",
+                      },
+                    ]}
+                    onPress={() => {
+                      setAlertConfig({
+                        title: selectedUser.isActive
+                          ? "Deactivate User"
+                          : "Activate User",
+                        message: `Are you sure you want to ${selectedUser.isActive ? "deactivate" : "activate"} this user?`,
+                        type: "warning",
+                        buttons: [
+                          {
+                            text: "Cancel",
+                            onPress: () => setAlertVisible(false),
+                            style: "cancel",
+                          },
+                          {
+                            text: selectedUser.isActive
+                              ? "Deactivate"
+                              : "Activate",
+                            onPress: async () => {
+                              setAlertVisible(false);
+                              if (!adminId) {
+                                setErrorMessage("Admin ID not found");
+                                return;
+                              }
+                              setUpdatingUser(true);
+                              try {
+                                const response =
+                                  await AdminService.toggleUserStatus(
+                                    selectedUser.id,
+                                    userType.slice(0, -1) as any, // "students" -> "student"
+                                    adminId,
+                                  );
+                                if (response.success) {
+                                  setSuccessMessage(response.message);
+                                  await fetchUsers();
+                                  setUserDetailModalVisible(false);
+                                } else {
+                                  setErrorMessage(response.message);
+                                }
+                              } catch (error) {
+                                console.error("Error toggling user status:", error);
+                                setErrorMessage("Failed to toggle user status");
+                              } finally {
+                                setUpdatingUser(false);
+                              }
+                            },
+                            style: "destructive",
+                          },
+                        ],
+                      });
+                      setAlertVisible(true);
+                    }}
+                  >
+                    <Ionicons
+                      name={selectedUser.isActive ? "ban" : "checkmark-circle"}
+                      size={18}
+                      color="#fff"
+                    />
+                    <Text style={styles.actionButtonText}>
+                      {selectedUser.isActive ? "Deactivate" : "Activate"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: "#dc2626" }]}
+                    onPress={() => {
+                      setAlertConfig({
+                        title: "Delete User",
+                        message:
+                          "Are you sure you want to delete this user? This action cannot be undone.",
+                        type: "warning",
+                        buttons: [
+                          {
+                            text: "Cancel",
+                            onPress: () => setAlertVisible(false),
+                            style: "cancel",
+                          },
+                          {
+                            text: "Delete",
+                            onPress: async () => {
+                              setAlertVisible(false);
+                              if (!adminId) {
+                                setErrorMessage("Admin ID not found");
+                                return;
+                              }
+                              setUpdatingUser(true);
+                              try {
+                                const response =
+                                  await AdminService.deleteUserAccount(
+                                    selectedUser.id,
+                                    userType.slice(0, -1) as any,
+                                    adminId,
+                                  );
+                                if (response.success) {
+                                  setSuccessMessage(response.message);
+                                  await fetchUsers();
+                                  setUserDetailModalVisible(false);
+                                } else {
+                                  setErrorMessage(response.message);
+                                }
+                              } catch (error) {
+                                console.error("Error deleting user:", error);
+                                setErrorMessage("Failed to delete user");
+                              } finally {
+                                setUpdatingUser(false);
+                              }
+                            },
+                            style: "destructive",
+                          },
+                        ],
+                      });
+                      setAlertVisible(true);
+                    }}
+                  >
+                    <Ionicons name="trash" size={18} color="#fff" />
+                    <Text style={styles.actionButtonText}>Delete</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    disabled={updatingUser}
+                    onPress={async () => {
+                      if (!editingUserData.firstName.trim()) {
+                        setErrorMessage("First name is required");
+                        return;
+                      }
+                      if (!editingUserData.lastName.trim()) {
+                        setErrorMessage("Last name is required");
+                        return;
+                      }
+                      if (!adminId) {
+                        setErrorMessage("Admin ID not found");
+                        return;
+                      }
+
+                      setUpdatingUser(true);
+                      try {
+                        const response = await AdminService.updateUserAccount(
+                          selectedUser.id,
+                          userType.slice(0, -1) as any,
+                          {
+                            firstName: editingUserData.firstName,
+                            lastName: editingUserData.lastName,
+                          },
+                          adminId,
+                        );
+                        if (response.success) {
+                          setSuccessMessage(response.message);
+                          await fetchUsers();
+                          setEditingUser(false);
+                          setErrorMessage("");
+                        } else {
+                          setErrorMessage(response.message);
+                        }
+                      } catch (error) {
+                        console.error("Error updating user:", error);
+                        setErrorMessage("Failed to update user");
+                      } finally {
+                        setUpdatingUser(false);
+                      }
+                    }}
+                  >
+                    {updatingUser ? (
+                      <Text style={styles.actionButtonText}>Saving...</Text>
+                    ) : (
+                      <>
+                        <Ionicons name="checkmark" size={18} color="#fff" />
+                        <Text style={styles.actionButtonText}>Save</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      { backgroundColor: "#6b7280" },
+                    ]}
+                    disabled={updatingUser}
+                    onPress={() => {
+                      setEditingUser(false);
+                      setErrorMessage("");
+                    }}
+                  >
+                    <Ionicons name="close" size={18} color="#fff" />
+                    <Text style={styles.actionButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+
+            {errorMessage && (
+              <View style={styles.errorAlert}>
+                <Ionicons name="alert-circle" size={18} color="#ef4444" />
+                <Text style={styles.errorAlertText}>{errorMessage}</Text>
+              </View>
+            )}
+
+            {successMessage && (
+              <View style={styles.successAlert}>
+                <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                <Text style={styles.successAlertText}>{successMessage}</Text>
+              </View>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+    );
+  };
 
   const renderChartModal = () => {
     const maxCount =
@@ -1917,6 +2584,7 @@ export default function AdminScreen() {
         </View>
       )}
 
+      {renderUserDetailModal()}
       {renderChartModal()}
     </SafeAreaView>
   );
@@ -2563,6 +3231,65 @@ const styles = StyleSheet.create({
   vehicleTypeBtnTextActive: {
     color: "#fff",
   },
+  vehicleTypeDropdownBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  vehicleTypeDropdownBtnActive: {
+    borderColor: "#1f8e4d",
+    backgroundColor: "#f0fdf4",
+  },
+  vehicleTypeDropdownText: {
+    fontSize: 14,
+    color: "#1d2934",
+    fontWeight: "500",
+    flex: 1,
+  },
+  vehicleTypeDropdownMenu: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    overflow: "hidden",
+  },
+  vehicleTypeDropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  vehicleTypeDropdownItemActive: {
+    backgroundColor: "#f0fdf4",
+  },
+  vehicleTypeDropdownItemText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#4b5563",
+    marginLeft: 10,
+  },
+  vehicleTypeDropdownItemTextActive: {
+    color: "#1f8e4d",
+    fontWeight: "600",
+  },
   textInput: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -2824,10 +3551,13 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 14,
     zIndex: 10,
+    overflow: "visible" as const,
   },
   auditFilterCol: {
     flex: 1,
     position: "relative" as const,
+    zIndex: 10,
+    overflow: "visible" as const,
   },
   auditFilterBtn: {
     flexDirection: "row",
@@ -2866,9 +3596,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-    zIndex: 100,
-    overflow: "hidden" as const,
+    elevation: 10,
+    zIndex: 1000,
+    overflow: "visible" as const,
+    minWidth: 100,
   },
   auditDropdownItem: {
     paddingVertical: 10,
@@ -2987,5 +3718,144 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "700" as const,
+  },
+  // ── User Detail Modal Styles ─────────────────────────────────────────
+  userDetailAvatarSection: {
+    alignItems: "center",
+    marginBottom: 30,
+    marginTop: 20,
+  },
+  userDetailAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#f3f4f6",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  userDetailName: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#1d2934",
+    marginBottom: 4,
+  },
+  userDetailRole: {
+    fontSize: 12,
+    color: "#6f7f93",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  userStatusBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  userStatusBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  userDetailSection: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  userDetailSectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1d2934",
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  detailRow: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: "#6f7f93",
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  detailValue: {
+    fontSize: 15,
+    color: "#1d2934",
+    fontWeight: "500",
+  },
+  editField: {
+    marginBottom: 16,
+  },
+  editLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 8,
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: "#1d2934",
+    backgroundColor: "#fafbfc",
+  },
+  userDetailActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 20,
+    flexWrap: "wrap",
+  },
+  actionButton: {
+    flex: 1,
+    minWidth: 100,
+    backgroundColor: "#1f8e4d",
+    borderRadius: 12,
+    paddingVertical: 12,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  // ── Excel Export Styles ──────────────────────────────────────────
+  auditLogsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+    gap: 12,
+  },
+  exportButton: {
+    backgroundColor: "#1f8e4d",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    justifyContent: "center",
+    minHeight: 44,
+  },
+  exportButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
   },
 });

@@ -25,17 +25,32 @@ export interface LoginResponse {
   minutesLocked?: number;
 }
 
-// Helper function to resolve ID/username to email
+/**
+ * ════════════════════════════════════════════════════════════════════════════════
+ * ALGORITHM: IDENTIFIER RESOLUTION (Multi-Step Cascading Search)
+ * ════════════════════════════════════════════════════════════════════════════════
+ * 
+ * Purpose: Convert username/ID input to email through multi-step fallback logic
+ * 
+ * Steps:
+ *  1. Check if input is already an email → validate & return
+ *  2. Search students collection by studentId
+ *  3. Search guards collection by employeeId
+ *  4. Try as username with domain suffix (username@qcu.edu.ph)
+ * 
+ * Complexity: O(n) for database queries, O(1) for email validation
+ * Use case: Allow users to login with email, student ID, employee ID, or username
+ * ════════════════════════════════════════════════════════════════════════════════
+ */
 const resolveIdentifierToEmail = async (identifier: string): Promise<string | null> => {
   const sanitized = identifier.trim();
   
-  // If it's already an email, return it
+  // STEP 1: Check if input is already an email
   if (sanitized.includes("@")) {
     return SecurityService.validateEmail(sanitized) ? sanitized : null;
   }
   
-  // If it looks like an ID (numeric or alphanumeric), search for it
-  // Search in students collection
+  // STEP 2: Search in students collection by studentId
   try {
     const studentsRef = collection(db, "students");
     const q = query(
@@ -51,7 +66,7 @@ const resolveIdentifierToEmail = async (identifier: string): Promise<string | nu
     console.error("Error searching students by ID:", error);
   }
   
-  // Search in guards collection
+  // STEP 3: Search in guards collection by employeeId
   try {
     const guardsRef = collection(db, "guards");
     const q = query(
@@ -67,7 +82,7 @@ const resolveIdentifierToEmail = async (identifier: string): Promise<string | nu
     console.error("Error searching guards by ID:", error);
   }
   
-  // Try as username - append domain
+  // STEP 4: Try as username with domain suffix
   const emailFromUsername = `${sanitized}@qcu.edu.ph`;
   return SecurityService.validateEmail(emailFromUsername) ? emailFromUsername : null;
 };
@@ -115,11 +130,93 @@ export const AuthService = {
       if (!email) {
         return {
           success: false,
-          message: "Invalid email, student ID, or username format.",
+          message: "User not found. Invalid email, student ID, or username.",
         };
       }
 
-      // ============ SECURITY CHECK: Account Lockout ============
+      // ════════════════════════════════════════════════════════════════════════
+      // CHECK: Verify user exists in database before authenticating
+      // ════════════════════════════════════════════════════════════════════════
+      let userExists = false;
+      
+      try {
+        // Search in students collection
+        let userQuery = query(
+          collection(db, "students"),
+          where("email", "==", email)
+        );
+        let snapshot = await getDocs(userQuery);
+        if (snapshot.size > 0) {
+          userExists = true;
+        }
+        
+        // Search in faculty collection
+        if (!userExists) {
+          userQuery = query(
+            collection(db, "faculty"),
+            where("email", "==", email)
+          );
+          snapshot = await getDocs(userQuery);
+          if (snapshot.size > 0) {
+            userExists = true;
+          }
+        }
+        
+        // Search in staff collection
+        if (!userExists) {
+          userQuery = query(
+            collection(db, "staff"),
+            where("email", "==", email)
+          );
+          snapshot = await getDocs(userQuery);
+          if (snapshot.size > 0) {
+            userExists = true;
+          }
+        }
+        
+        // Search in guards collection
+        if (!userExists) {
+          userQuery = query(
+            collection(db, "guards"),
+            where("email", "==", email)
+          );
+          snapshot = await getDocs(userQuery);
+          if (snapshot.size > 0) {
+            userExists = true;
+          }
+        }
+        
+        // Search in admins collection
+        if (!userExists) {
+          userQuery = query(
+            collection(db, "admins"),
+            where("email", "==", email)
+          );
+          snapshot = await getDocs(userQuery);
+          if (snapshot.size > 0) {
+            userExists = true;
+          }
+        }
+      } catch (checkError) {
+        console.error("Error checking user existence:", checkError);
+      }
+      
+      // If user doesn't exist in any collection, return error immediately
+      if (!userExists) {
+        await SecurityService.logSecurityEvent({
+          type: "LOGIN_USER_NOT_FOUND",
+          email,
+          details: `Login attempt for non-existent user: ${sanitizedUsername}`,
+        });
+        return {
+          success: false,
+          message: "User not found. Please check your credentials.",
+        };
+      }
+
+      // ════════════════════════════════════════════════════════════════════════
+      // ACCOUNT LOCKOUT MECHANISM (Brute Force Prevention)
+      // ════════════════════════════════════════════════════════════════════════
       const { locked, minutesRemaining } =
         await SecurityService.isAccountLocked(email);
       if (locked) {
@@ -135,7 +232,13 @@ export const AuthService = {
         };
       }
 
-      // ============ SECURITY: Add delay to prevent brute force ============
+      // ════════════════════════════════════════════════════════════════════════
+      // ALGORITHM: BRUTE FORCE THROTTLING (Rate Limiting)
+      // ════════════════════════════════════════════════════════════════════════
+      // - Adds artificial 500ms delay on every login attempt
+      // - Slows down automated attack scripts
+      // - O(1) operation
+      // ════════════════════════════════════════════════════════════════════════
       await SecurityService.addSecurityDelay(500);
 
       // Sign in with Firebase

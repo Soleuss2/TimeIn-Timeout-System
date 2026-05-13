@@ -47,7 +47,21 @@ const safeRemoveItem = async (key: string): Promise<void> => {
 
 export const SecurityService = {
   /**
-   * Check if an email is currently locked due to too many failed attempts
+   * ════════════════════════════════════════════════════════════════════════════
+   * ALGORITHM: ACCOUNT LOCKOUT MECHANISM (Exponential Backoff)
+   * ════════════════════════════════════════════════════════════════════════════
+   * 
+   * Purpose: Prevent brute force attacks by locking accounts after failed attempts
+   * 
+   * Logic:
+   *  - Track failed attempts per email with timestamp
+   *  - After MAX_LOGIN_ATTEMPTS (5), lock account for LOCKOUT_DURATION_MS (15 min)
+   *  - If lockout time expired → unlock and reset attempts
+   *  - If no attempts within ATTEMPT_RESET_DURATION_MS (1 hour) → reset counter
+   * 
+   * Time Complexity: O(1) - simple comparisons
+   * Space Complexity: O(1) per email
+   * ════════════════════════════════════════════════════════════════════════════
    */
   isAccountLocked: async (
     email: string,
@@ -73,14 +87,19 @@ export const SecurityService = {
         return { locked: true, minutesRemaining };
       }
 
-      // Check if attempts should be reset
+      // ──────────────────────────────────────────────────────────────────────
+      // ALGORITHM: TIME-WINDOW ATTEMPT RESET (Decay Pattern)
+      // ──────────────────────────────────────────────────────────────────────
+      // Reset counter if no attempts within 1 hour (ATTEMPT_RESET_DURATION_MS)
+      // This allows legitimate users to recover from temporary lockout
+      // ──────────────────────────────────────────────────────────────────────
       if (now - attempt.timestamp > ATTEMPT_RESET_DURATION_MS) {
         await safeRemoveItem(`login_attempt_${email}`);
         return { locked: false, minutesRemaining: 0 };
       }
 
       return { locked: false, minutesRemaining: 0 };
-    } catch (error) {
+    } catch (_error) {
       return { locked: false, minutesRemaining: 0 };
     }
   },
@@ -140,7 +159,7 @@ export const SecurityService = {
         attemptsRemaining,
         isNowLocked: attempt.isLocked,
       };
-    } catch (error) {
+    } catch (_error) {
       return { attemptsRemaining: MAX_LOGIN_ATTEMPTS, isNowLocked: false };
     }
   },
@@ -151,7 +170,7 @@ export const SecurityService = {
   clearLoginAttempts: async (email: string): Promise<void> => {
     try {
       await safeRemoveItem(`login_attempt_${email}`);
-    } catch (error) {}
+    } catch (_error) {}
   },
 
   /**
@@ -225,7 +244,7 @@ export const SecurityService = {
       //   method: 'POST',
       //   body: JSON.stringify(eventLog),
       // });
-    } catch (error) {}
+    } catch (_error) {}
   },
 
   /**
@@ -270,7 +289,7 @@ export const SecurityService = {
   clearSecurityLogs: async (): Promise<void> => {
     try {
       await safeRemoveItem("security_logs");
-    } catch (error) {}
+    } catch (_error) {}
   },
 
   /**

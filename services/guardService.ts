@@ -7,6 +7,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  getDoc,
 } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import { createScanNotification } from "./notificationService";
@@ -30,6 +31,37 @@ export const processGuardEntry = async (
         message: "Invalid QR Code. Walang ID na na-detect.",
       };
     }
+
+    // ── Fetch vehicle type from student/faculty/staff profile if ID exists ──
+    let vehicleType = data.vehicleType || null;
+    let profileId: string | null = null; // studentId, facultyId, staffId, etc.
+    if (data.id && data.role && ["student", "faculty", "staff"].includes(data.role)) {
+      try {
+        const collectionName =
+          data.role === "student"
+            ? "students"
+            : data.role === "faculty"
+              ? "faculty"
+              : "staff";
+        const userDocRef = doc(db, collectionName, data.id);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          vehicleType = userDoc.data().vehicleType || null;
+          // Extract profile-specific ID (studentId, facultyId, staffId)
+          const idFieldName =
+            data.role === "student"
+              ? "studentId"
+              : data.role === "faculty"
+                ? "facultyId"
+                : "staffId";
+          profileId = userDoc.data()[idFieldName] || null;
+        }
+      } catch (error) {
+        console.error(`Error fetching ${data.role} profile:`, error);
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     //dito yung sa namning ng Table sa database.
     const logsRef = collection(db, "TimeLogs");
 
@@ -87,7 +119,8 @@ export const processGuardEntry = async (
       name: data.name || "Unknown",
       role: data.role || "visitor", // Dynamic role (student, prof, staff)
       plateNumber: data.plateNumber || null,
-      vehicleType: data.vehicleType || null,
+      vehicleType: vehicleType,
+      profileId: profileId, // studentId, facultyId, staffId for easier searching
       method: data.method,
       dateString: today, // Magagamit niyo ito pang-filter sa Activity Dashboard "within the day"
       timeIn: serverTimestamp(),
@@ -114,9 +147,24 @@ export const processGuardEntry = async (
   }
 };
 
-// ── Custom Quick Sort Algorithm ──────────────────────────────────────────
-// Sorts log objects in descending order based on their timeIn timestamp
-// (latest entries appear first).
+// ════════════════════════════════════════════════════════════════════════════════
+// ALGORITHM: QUICK SORT (3-Way Partition)
+// ════════════════════════════════════════════════════════════════════════════════
+// 
+// Purpose: Sort activity logs by timestamp in descending order (latest first)
+// 
+// Implementation:
+//  - Selects pivot element (middle of array)
+//  - Partitions array into 3 groups:
+//    * left: timestamps > pivot (earlier in time = come first in DESC)
+//    * equal: timestamps == pivot
+//    * right: timestamps < pivot (later in time)
+//  - Recursively sorts left and right partitions
+// 
+// Time Complexity: O(n log n) average, O(n²) worst case
+// Space Complexity: O(log n) for recursion stack
+// Use Case: Sort guard activity logs by most recent check-in/out first
+// ════════════════════════════════════════════════════════════════════════════════
 function quickSortLogs(arr: any[]): any[] {
   if (arr.length <= 1) return arr;
 

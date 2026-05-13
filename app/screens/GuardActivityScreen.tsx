@@ -20,8 +20,24 @@ const DATE_OPTIONS = ["All Date", "Today", "Yesterday"] as const;
 const ENTRY_OPTIONS = ["All Entry", "Student", "Faculty", "Staff", "Guard", "Guest"] as const;
 const VEHICLE_OPTIONS = ["All Vehicles", "Car", "Motorcycle", "Ebike", "Others"] as const;
 
-// ── Levenshtein Distance Algorithm ──────────────────────────────────────
-// Used for fuzzy string matching in the search bar.
+// ════════════════════════════════════════════════════════════════════════════════
+// ALGORITHM: LEVENSHTEIN DISTANCE (Edit Distance / Fuzzy Matching)
+// ════════════════════════════════════════════════════════════════════════════════
+// 
+// Purpose: Find typo-tolerant matches by calculating minimum edit distance
+// 
+// Algorithm:
+//  - Dynamic Programming approach (DP table)
+//  - Calculates minimum edits needed to transform string s1 into s2
+//  - Allowed operations: insertion, deletion, substitution
+//  - dp[i][j] = edit distance between s1[0..i-1] and s2[0..j-1]
+// 
+// Time Complexity: O(m × n) where m, n are string lengths
+// Space Complexity: O(m × n) for DP table
+// 
+// Use Case: Search guard activity by name/plate with typo tolerance
+// Example: "John" matches "Jon" with distance 1 (deletion)
+// ════════════════════════════════════════════════════════════════════════════════
 function levenshteinDistance(s1: string, s2: string): number {
   const len1 = s1.length;
   const len2 = s2.length;
@@ -105,7 +121,7 @@ export default function GuardActivityScreen() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dateFilter, setDateFilter] = useState<(typeof DATE_OPTIONS)[number]>(
-    DATE_OPTIONS[0],
+    "Today",
   );
   const [entryFilter, setEntryFilter] = useState<
     (typeof ENTRY_OPTIONS)[number]
@@ -115,6 +131,7 @@ export default function GuardActivityScreen() {
   >(VEHICLE_OPTIONS[0]);
   const [expandedFilter, setExpandedFilter] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<any | null>(null);
+  const [statFilter, setStatFilter] = useState<"all" | "inside" | "departed">("all");
 
   // Fetch real data on mount
   useEffect(() => {
@@ -144,12 +161,14 @@ export default function GuardActivityScreen() {
       const itemName = (item.name || "").toLowerCase();
       const itemPlate = (item.plateNumber || "").toLowerCase();
       const itemId = (item.id || "").toLowerCase();
+      const itemProfileId = (item.profileId || "").toLowerCase(); // studentId, facultyId, staffId
 
       const matchesSearch =
         q.length === 0 ||
         itemName.includes(q) ||
         itemPlate.includes(q) ||
         itemId.includes(q) ||
+        itemProfileId.includes(q) ||
         levenshteinDistance(q, itemName) <= 2 ||
         levenshteinDistance(q, itemPlate) <= 2;
 
@@ -188,14 +207,23 @@ export default function GuardActivityScreen() {
         matchesDate = isYesterday(item.timeIn);
       }
 
-      return matchesSearch && matchesEntry && matchesVehicle && matchesDate;
-    });
-  }, [logs, search, entryFilter, vehicleFilter, dateFilter]);
+      // Stat filter
+      let matchesStat = true;
+      if (statFilter === "inside") {
+        matchesStat = item.status === "IN";
+      } else if (statFilter === "departed") {
+        matchesStat = item.status === "OUT";
+      }
 
-  // ── Stats from real data ───────────────────────────────────────────────
-  const totalVehicles = logs.length;
-  const insideCount = logs.filter((item) => item.status === "IN").length;
-  const departedCount = logs.filter((item) => item.status === "OUT").length;
+      return matchesSearch && matchesEntry && matchesVehicle && matchesDate && matchesStat;
+    });
+  }, [logs, search, entryFilter, vehicleFilter, dateFilter, statFilter]);
+
+  // ── Stats from real data (TODAY ONLY) ─────────────────────────────────
+  const todayLogs = logs.filter((item) => isToday(item.timeIn));
+  const totalVehicles = todayLogs.length;
+  const insideCount = todayLogs.filter((item) => item.status === "IN").length;
+  const departedCount = todayLogs.filter((item) => item.status === "OUT").length;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -218,27 +246,48 @@ export default function GuardActivityScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
+          <TouchableOpacity
+            style={[
+              styles.statCard,
+              statFilter === "all" && styles.statCardActive,
+            ]}
+            onPress={() => setStatFilter("all")}
+            activeOpacity={0.7}
+          >
             <View style={styles.statCardIcon}>
               <Ionicons name="car-sport" size={20} color="#1f8e4d" />
             </View>
             <Text style={styles.statNumber}>{totalVehicles}</Text>
             <Text style={styles.statLabel}>Total Vehicles</Text>
-          </View>
-          <View style={styles.statCard}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.statCard,
+              statFilter === "inside" && styles.statCardActive,
+            ]}
+            onPress={() => setStatFilter("inside")}
+            activeOpacity={0.7}
+          >
             <View style={styles.statCardIcon}>
               <Ionicons name="location" size={20} color="#1f8e4d" />
             </View>
             <Text style={styles.statNumber}>{insideCount}</Text>
             <Text style={styles.statLabel}>Inside Campus</Text>
-          </View>
-          <View style={styles.statCard}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.statCard,
+              statFilter === "departed" && styles.statCardActive,
+            ]}
+            onPress={() => setStatFilter("departed")}
+            activeOpacity={0.7}
+          >
             <View style={styles.statCardIcon}>
               <Ionicons name="exit" size={20} color="#1f8e4d" />
             </View>
             <Text style={styles.statNumber}>{departedCount}</Text>
             <Text style={styles.statLabel}>Departed</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.searchSection}>
@@ -250,7 +299,7 @@ export default function GuardActivityScreen() {
           />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by plate number, name or ID..."
+            placeholder="Search by student ID, plate, name..."
             placeholderTextColor="#999"
             value={search}
             onChangeText={setSearch}
@@ -720,6 +769,11 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: "center",
     justifyContent: "center",
+  },
+  statCardActive: {
+    backgroundColor: "#f0fdf4",
+    borderWidth: 2,
+    borderColor: "#1f8e4d",
   },
   statCardIcon: {
     marginBottom: 6,

@@ -1167,4 +1167,245 @@ export const AdminService = {
       return [];
     }
   },
+
+  /**
+   * Update a user account (student, faculty, staff, or guard)
+   */
+  updateUserAccount: async (
+    userId: string,
+    role: "student" | "faculty" | "staff" | "guard",
+    updates: Partial<DirectoryUser>,
+    adminId: string,
+  ): Promise<AdminAccountResponse> => {
+    try {
+      // Verify admin privileges
+      const isAdmin = await AdminService.verifyAdminPrivileges(adminId);
+      if (!isAdmin) {
+        return {
+          success: false,
+          message: "Unauthorized. Admin privileges required.",
+          error: "ADMIN_VERIFICATION_FAILED",
+        };
+      }
+
+      // Determine collection name
+      const collectionName =
+        role === "student"
+          ? "students"
+          : role === "faculty"
+            ? "faculty"
+            : role === "staff"
+              ? "staff"
+              : "guards";
+
+      const userRef = doc(db, collectionName, userId);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        return {
+          success: false,
+          message: `${role} not found`,
+          error: "USER_NOT_FOUND",
+        };
+      }
+
+      // Prepare update data
+      const updateData: any = {
+        ...updates,
+        updatedAt: Timestamp.now(),
+        updatedBy: adminId,
+      };
+
+      // Remove fields that shouldn't be updated directly
+      delete updateData.id;
+      delete updateData.uid;
+      delete updateData.role;
+      delete updateData.createdAt;
+
+      // Update user document
+      await updateDoc(userRef, updateData);
+
+      // Log security event
+      await SecurityService.logSecurityEvent({
+        type: "ACCOUNT_UPDATED",
+        userId,
+        role,
+        adminId,
+        updates: Object.keys(updates),
+      });
+
+      return {
+        success: true,
+        message: `${role} account updated successfully`,
+        userId,
+      };
+    } catch (error: any) {
+      console.error(`Error updating ${role} account:`, error);
+
+      await SecurityService.logSecurityEvent({
+        type: "ACCOUNT_UPDATE_FAILED",
+        userId,
+        role,
+        adminId,
+        error: error.message,
+      });
+
+      return {
+        success: false,
+        message: "Failed to update account",
+        error: error.message,
+      };
+    }
+  },
+
+  /**
+   * Toggle user active status
+   */
+  toggleUserStatus: async (
+    userId: string,
+    role: "student" | "faculty" | "staff" | "guard",
+    adminId: string,
+  ): Promise<AdminAccountResponse> => {
+    try {
+      // Verify admin privileges
+      const isAdmin = await AdminService.verifyAdminPrivileges(adminId);
+      if (!isAdmin) {
+        return {
+          success: false,
+          message: "Unauthorized. Admin privileges required.",
+          error: "ADMIN_VERIFICATION_FAILED",
+        };
+      }
+
+      const collectionName =
+        role === "student"
+          ? "students"
+          : role === "faculty"
+            ? "faculty"
+            : role === "staff"
+              ? "staff"
+              : "guards";
+
+      const userRef = doc(db, collectionName, userId);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        return {
+          success: false,
+          message: `${role} not found`,
+          error: "USER_NOT_FOUND",
+        };
+      }
+
+      const currentStatus = userSnap.data().isActive || false;
+      const newStatus = !currentStatus;
+
+      await updateDoc(userRef, {
+        isActive: newStatus,
+        updatedAt: Timestamp.now(),
+        updatedBy: adminId,
+      });
+
+      // Log security event
+      await SecurityService.logSecurityEvent({
+        type: "ACCOUNT_STATUS_CHANGED",
+        userId,
+        role,
+        newStatus,
+        adminId,
+      });
+
+      return {
+        success: true,
+        message: `${role} ${newStatus ? "activated" : "deactivated"} successfully`,
+        userId,
+      };
+    } catch (error: any) {
+      console.error(`Error toggling ${role} status:`, error);
+      return {
+        success: false,
+        message: "Failed to toggle user status",
+        error: error.message,
+      };
+    }
+  },
+
+  /**
+   * Delete a user account
+   */
+  deleteUserAccount: async (
+    userId: string,
+    role: "student" | "faculty" | "staff" | "guard",
+    adminId: string,
+  ): Promise<AdminAccountResponse> => {
+    try {
+      // Verify admin privileges
+      const isAdmin = await AdminService.verifyAdminPrivileges(adminId);
+      if (!isAdmin) {
+        return {
+          success: false,
+          message: "Unauthorized. Admin privileges required.",
+          error: "ADMIN_VERIFICATION_FAILED",
+        };
+      }
+
+      const collectionName =
+        role === "student"
+          ? "students"
+          : role === "faculty"
+            ? "faculty"
+            : role === "staff"
+              ? "staff"
+              : "guards";
+
+      const userRef = doc(db, collectionName, userId);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        return {
+          success: false,
+          message: `${role} not found`,
+          error: "USER_NOT_FOUND",
+        };
+      }
+
+      // Soft delete: Mark as deleted instead of removing
+      await updateDoc(userRef, {
+        isActive: false,
+        deleted: true,
+        deletedAt: Timestamp.now(),
+        deletedBy: adminId,
+      });
+
+      // Log security event
+      await SecurityService.logSecurityEvent({
+        type: "ACCOUNT_DELETED",
+        userId,
+        role,
+        adminId,
+      });
+
+      return {
+        success: true,
+        message: `${role} account deleted successfully`,
+        userId,
+      };
+    } catch (error: any) {
+      console.error(`Error deleting ${role} account:`, error);
+
+      await SecurityService.logSecurityEvent({
+        type: "ACCOUNT_DELETION_FAILED",
+        userId,
+        role,
+        adminId,
+        error: error.message,
+      });
+
+      return {
+        success: false,
+        message: "Failed to delete account",
+        error: error.message,
+      };
+    }
+  },
 };
