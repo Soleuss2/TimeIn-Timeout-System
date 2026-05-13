@@ -1,12 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { type ComponentType, useRef, useState, useEffect } from "react";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import React, { type ComponentType, useRef, useState, useEffect, useCallback } from "react";
 import {
   ActivityIndicator,
   Animated,
+  BackHandler,
   Modal,
+  PanResponder,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -92,6 +94,25 @@ export default function StudentScreen() {
 
   // Student details modal state
   const [studentDetailsModalVisible, setStudentDetailsModalVisible] = useState(false);
+
+  // PanResponder for swipe gesture detection
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only activate if there's significant horizontal movement and minimal vertical movement
+        return Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 20;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        // Detect left or right swipe (threshold of 50 pixels)
+        const SWIPE_THRESHOLD = 50;
+        if (gestureState.dx > SWIPE_THRESHOLD || gestureState.dx < -SWIPE_THRESHOLD) {
+          // Swipe detected - show logout confirmation
+          handleLogout();
+        }
+      },
+    })
+  ).current;
 
   const onDownloadPressIn = () => {
     Animated.spring(downloadPressAnim, {
@@ -202,6 +223,24 @@ export default function StudentScreen() {
     loadStudentData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Handle back button press and swipe gestures
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        // Show logout confirmation instead of exiting
+        handleLogout();
+        return true; // Prevent default back behavior
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [])
+  );
 
   // Trigger smooth animations
   const triggerAnimations = () => {
@@ -517,28 +556,29 @@ export default function StudentScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <LoaderComponent
-        visible={logoutLoading}
-        message="Logging out..."
-        logoSize={100}
-      />
-      <CustomAlert
-        visible={alertVisible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        type={alertConfig.type}
-        buttons={alertConfig.buttons}
-      />
-      <ScanNotificationStack
-        notifications={notifications}
-        onDismiss={clearNotification}
-        onGuard={false}
-      />
-      {Platform.OS !== "web" && (
-        <StatusBar barStyle="light-content" backgroundColor="#11412a" />
-      )}
-      <View style={styles.backgroundShapeTop} />
-      <View style={styles.backgroundShapeBottom} />
+      <View {...panResponder.panHandlers} style={{ flex: 1 }}>
+        <LoaderComponent
+          visible={logoutLoading}
+          message="Logging out..."
+          logoSize={100}
+        />
+        <CustomAlert
+          visible={alertVisible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          type={alertConfig.type}
+          buttons={alertConfig.buttons}
+        />
+        <ScanNotificationStack
+          notifications={notifications}
+          onDismiss={clearNotification}
+          onGuard={false}
+        />
+        {Platform.OS !== "web" && (
+          <StatusBar barStyle="light-content" backgroundColor="#11412a" />
+        )}
+        <View style={styles.backgroundShapeTop} />
+        <View style={styles.backgroundShapeBottom} />
 
       <View style={styles.header}>
         <View style={styles.headerCopy}>
@@ -866,6 +906,7 @@ export default function StudentScreen() {
         userId={student?.id}
         isGuard={false}
       />
+      </View>
     </SafeAreaView>
   );
 }

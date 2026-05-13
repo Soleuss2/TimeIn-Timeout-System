@@ -15,6 +15,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { AuthService } from "../../services/authService";
@@ -23,6 +24,15 @@ import { CustomAlert, AlertAction } from "../../components/CustomAlert";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  // Better breakpoints for all mobile devices
+  const isExtraSmallScreen = width < 360; // Very small phones (iPhone SE)
+  const isSmallScreen = width < 480; // Small phones (iPhone 12 mini, etc)
+  const isMediumScreen = width >= 480 && width < 768; // Regular phones
+  const isLargeScreen = width >= 768; // Tablets
+  const isShortScreen = height < 600; // Short screens
+  const isExtraTallScreen = height > 800; // Extra tall screens
+  
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -242,19 +252,99 @@ export default function LoginScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView
-          contentContainerStyle={styles.container}
+          contentContainerStyle={[
+            styles.container,
+            isExtraSmallScreen && styles.containerExtraSmall,
+            isSmallScreen && styles.containerSmall,
+            isMediumScreen && styles.containerMedium,
+            isShortScreen && styles.containerShort,
+            isExtraTallScreen && styles.containerExtraTall,
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           bounces={false}
         >
-          <View style={styles.contentShell}>
-            <View style={styles.heroCard}>
-              <View style={styles.heroTopRow}>
-                <View style={styles.heroCopy}>
-                  <Text style={styles.heroEyebrow}>Campus Access</Text>
-                  <Text style={styles.heroTitle}>QCU Parking Monitoring System</Text>
+          <View
+            style={[
+              styles.contentShell,
+              isExtraSmallScreen && { maxWidth: "100%", paddingHorizontal: 8 },
+              isSmallScreen && { maxWidth: "100%", paddingHorizontal: 12 },
+              isMediumScreen && { maxWidth: "95%" },
+              isLargeScreen && { paddingHorizontal: 20 },
+            ]}
+          >
+            <View
+              style={[
+                styles.heroCard,
+                isExtraSmallScreen && { padding: 12, marginBottom: 10 },
+                isSmallScreen && { padding: 16, marginBottom: 12 },
+                isMediumScreen && { padding: 20, marginBottom: 16 },
+                isShortScreen && { marginBottom: 8, padding: 12 },
+                isExtraTallScreen && { marginBottom: 24, padding: 28 },
+              ]}
+            >
+              <View
+                style={[
+                  styles.heroTopRow,
+                  (isExtraSmallScreen || isSmallScreen) && { flexDirection: "column" },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.heroCopy,
+                    isExtraSmallScreen && { paddingRight: 0, marginBottom: 10 },
+                    isSmallScreen && { paddingRight: 0, marginBottom: 12 },
+                    isMediumScreen && { marginBottom: 0 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.heroEyebrow,
+                      isExtraSmallScreen && { fontSize: 9 },
+                      isSmallScreen && { fontSize: 10 },
+                      isLargeScreen && { fontSize: 13 },
+                    ]}
+                  >
+                    Campus Access
+                  </Text>
+                  <Text
+                    style={[
+                      styles.heroTitle,
+                      isExtraSmallScreen && { fontSize: 18, lineHeight: 22 },
+                      isSmallScreen && { fontSize: 20, lineHeight: 26 },
+                      isMediumScreen && { fontSize: 26, lineHeight: 32 },
+                      isLargeScreen && { fontSize: 32, lineHeight: 38 },
+                    ]}
+                  >
+                    QCU Parking Monitoring System
+                  </Text>
                 </View>
-                <View style={styles.heroBadge}>
+                <View
+                  style={[
+                    styles.heroBadge,
+                    isExtraSmallScreen && {
+                      width: 70,
+                      height: 70,
+                      alignSelf: "flex-start",
+                      marginLeft: 0,
+                    },
+                    isSmallScreen && {
+                      width: 80,
+                      height: 80,
+                      alignSelf: "flex-start",
+                      marginLeft: 0,
+                    },
+                    isMediumScreen && {
+                      width: 100,
+                      height: 100,
+                      marginLeft: 0,
+                    },
+                    isLargeScreen && {
+                      width: 120,
+                      height: 120,
+                    },
+                  ]}
+                >
                   <Image
                     source={require("../../assets/images/qcu-logo.jpg")}
                     style={styles.heroBadgeImage}
@@ -264,21 +354,97 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            <View style={styles.formCard}>
-              <View style={styles.formHeader}>
-                <Text style={styles.formLabel}>Sign In</Text>
-                <Text style={styles.formTitle}>Welcome back</Text>
-                <Text style={styles.formSubtitle}>
+            <View
+              style={[
+                styles.formCard,
+                isExtraSmallScreen && { padding: 12, marginBottom: 10 },
+                isSmallScreen && { padding: 16, marginBottom: 12 },
+                isMediumScreen && { padding: 20, marginBottom: 16 },
+                isShortScreen && { marginBottom: 8, padding: 12 },
+                isExtraTallScreen && { marginBottom: 24, padding: 28 },
+              ]}
+            >
+              <View
+                style={[
+                  styles.formHeader,
+                  isExtraSmallScreen && { marginBottom: 12 },
+                  isSmallScreen && { marginBottom: 14 },
+                  isMediumScreen && { marginBottom: 18 },
+                  isLargeScreen && { marginBottom: 24 },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.formLabel,
+                    isExtraSmallScreen && { fontSize: 9 },
+                    isSmallScreen && { fontSize: 10 },
+                    isLargeScreen && { fontSize: 12 },
+                  ]}
+                >
+                  Sign In
+                </Text>
+                <Text
+                  style={[
+                    styles.formTitle,
+                    isExtraSmallScreen && { fontSize: 18 },
+                    isSmallScreen && { fontSize: 20 },
+                    isMediumScreen && { fontSize: 22 },
+                    isLargeScreen && { fontSize: 28 },
+                  ]}
+                >
+                  Welcome back
+                </Text>
+                <Text
+                  style={[
+                    styles.formSubtitle,
+                    isExtraSmallScreen && { fontSize: 11 },
+                    isSmallScreen && { fontSize: 12 },
+                    isLargeScreen && { fontSize: 16 },
+                  ]}
+                >
                   Use your campus credentials to continue.
                 </Text>
               </View>
 
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Email, Student ID, or Employee ID</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="person-outline" size={18} color="#7d8a99" />
+              <View
+                style={[
+                  styles.formGroup,
+                  isExtraSmallScreen && { marginBottom: 10 },
+                  isSmallScreen && { marginBottom: 12 },
+                  isMediumScreen && { marginBottom: 16 },
+                  isLargeScreen && { marginBottom: 18 },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.label,
+                    isExtraSmallScreen && { fontSize: 11, marginBottom: 5 },
+                    isSmallScreen && { fontSize: 12, marginBottom: 6 },
+                    isLargeScreen && { fontSize: 14, marginBottom: 8 },
+                  ]}
+                >
+                  Email, Student ID, or Employee ID
+                </Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    isExtraSmallScreen && { height: 44, paddingHorizontal: 8 },
+                    isSmallScreen && { height: 48, paddingHorizontal: 10 },
+                    isLargeScreen && { height: 56, paddingHorizontal: 16 },
+                  ]}
+                >
+                  <Ionicons
+                    name="person-outline"
+                    size={isExtraSmallScreen ? 14 : isSmallScreen ? 16 : 18}
+                    color="#7d8a99"
+                  />
                   <TextInput
-                    style={styles.input}
+                    style={[
+                      styles.input,
+                      isExtraSmallScreen && { fontSize: 13, marginHorizontal: 6 },
+                      isSmallScreen && { fontSize: 14, marginHorizontal: 8 },
+                      isLargeScreen && { fontSize: 16, marginHorizontal: 10 },
+                    ]}
                     placeholder="Enter your email or ID"
                     placeholderTextColor="#b0b7c1"
                     value={username}
@@ -290,16 +456,45 @@ export default function LoginScreen() {
                 </View>
               </View>
 
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Password</Text>
-                <View style={styles.inputWrapper}>
+              <View
+                style={[
+                  styles.formGroup,
+                  isExtraSmallScreen && { marginBottom: 10 },
+                  isSmallScreen && { marginBottom: 12 },
+                  isMediumScreen && { marginBottom: 16 },
+                  isLargeScreen && { marginBottom: 18 },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.label,
+                    isExtraSmallScreen && { fontSize: 11, marginBottom: 5 },
+                    isSmallScreen && { fontSize: 12, marginBottom: 6 },
+                    isLargeScreen && { fontSize: 14, marginBottom: 8 },
+                  ]}
+                >
+                  Password
+                </Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    isExtraSmallScreen && { height: 44, paddingHorizontal: 8 },
+                    isSmallScreen && { height: 48, paddingHorizontal: 10 },
+                    isLargeScreen && { height: 56, paddingHorizontal: 16 },
+                  ]}
+                >
                   <Ionicons
                     name="lock-closed-outline"
-                    size={18}
+                    size={isExtraSmallScreen ? 14 : isSmallScreen ? 16 : 18}
                     color="#7d8a99"
                   />
                   <TextInput
-                    style={styles.input}
+                    style={[
+                      styles.input,
+                      isExtraSmallScreen && { fontSize: 13, marginHorizontal: 6 },
+                      isSmallScreen && { fontSize: 14, marginHorizontal: 8 },
+                      isLargeScreen && { fontSize: 16, marginHorizontal: 10 },
+                    ]}
                     placeholder="Enter your password"
                     placeholderTextColor="#b0b7c1"
                     secureTextEntry={!showPassword}
@@ -317,7 +512,7 @@ export default function LoginScreen() {
                   >
                     <Ionicons
                       name={showPassword ? "eye" : "eye-off"}
-                      size={18}
+                      size={isExtraSmallScreen ? 14 : isSmallScreen ? 16 : 18}
                       color="#7d8a99"
                     />
                   </TouchableOpacity>
@@ -326,12 +521,30 @@ export default function LoginScreen() {
 
               {/* Error Message Display */}
               {errorMessage ? (
-                <View style={styles.errorContainer}>
-                  <Ionicons name="alert-circle" size={18} color="#d32f2f" />
+                <View
+                  style={[
+                    styles.errorContainer,
+                    isExtraSmallScreen && { padding: 10, marginBottom: 12 },
+                    isSmallScreen && { padding: 12, marginBottom: 14 },
+                  ]}
+                >
+                  <Ionicons name="alert-circle" size={isSmallScreen ? 16 : 18} color="#d32f2f" />
                   <View style={styles.errorContent}>
-                    <Text style={styles.errorMessage}>{errorMessage}</Text>
+                    <Text
+                      style={[
+                        styles.errorMessage,
+                        isSmallScreen && { fontSize: 13 },
+                      ]}
+                    >
+                      {errorMessage}
+                    </Text>
                     {attemptsRemaining !== null && attemptsRemaining > 0 && (
-                      <Text style={styles.attemptsText}>
+                      <Text
+                        style={[
+                          styles.attemptsText,
+                          isSmallScreen && { fontSize: 11 },
+                        ]}
+                      >
                         Attempts remaining: {attemptsRemaining}
                       </Text>
                     )}
@@ -340,17 +553,37 @@ export default function LoginScreen() {
               ) : null}
 
               <TouchableOpacity
-                style={styles.forgotButton}
+                style={[
+                  styles.forgotButton,
+                  isExtraSmallScreen && { marginBottom: 12 },
+                  isSmallScreen && { marginBottom: 14 },
+                  isLargeScreen && { marginBottom: 24 },
+                ]}
                 onPress={() => {
                   setResetPasswordModalVisible(true);
                   setResetSuccess(false);
                 }}
               >
-                <Text style={styles.forgotText}>Forgot Password?</Text>
+                <Text
+                  style={[
+                    styles.forgotText,
+                    isExtraSmallScreen && { fontSize: 11 },
+                    isSmallScreen && { fontSize: 12 },
+                    isLargeScreen && { fontSize: 14 },
+                  ]}
+                >
+                  Forgot Password?
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
+                style={[
+                  styles.button,
+                  loading && styles.buttonDisabled,
+                  isExtraSmallScreen && { height: 44 },
+                  isSmallScreen && { height: 48 },
+                  isLargeScreen && { height: 56 },
+                ]}
                 onPress={handleLogin}
                 disabled={loading}
                 activeOpacity={0.85}
@@ -358,11 +591,25 @@ export default function LoginScreen() {
                 {loading ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <View style={styles.buttonContent}>
-                    <Text style={styles.buttonText}>SIGN IN</Text>
+                  <View
+                    style={[
+                      styles.buttonContent,
+                      isSmallScreen && { flexDirection: "row" },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.buttonText,
+                        isExtraSmallScreen && { fontSize: 12 },
+                        isSmallScreen && { fontSize: 13 },
+                        isLargeScreen && { fontSize: 16 },
+                      ]}
+                    >
+                      SIGN IN
+                    </Text>
                     <Ionicons
                       name="arrow-forward"
-                      size={16}
+                      size={isExtraSmallScreen ? 12 : isSmallScreen ? 14 : 16}
                       color="#fff"
                       style={styles.buttonIcon}
                     />
@@ -371,11 +618,34 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>
+            <View
+              style={[
+                styles.footer,
+                isExtraSmallScreen && { marginTop: 0, paddingTop: 8 },
+                isSmallScreen && { marginTop: 0, paddingTop: 12 },
+                isLargeScreen && { marginTop: 2, paddingTop: 20 },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.footerText,
+                  isExtraSmallScreen && { fontSize: 9 },
+                  isSmallScreen && { fontSize: 10 },
+                  isLargeScreen && { fontSize: 13 },
+                ]}
+              >
                 © 2024 Quezon City University
               </Text>
-              <Text style={styles.versionText}>v1.0.0</Text>
+              <Text
+                style={[
+                  styles.versionText,
+                  isExtraSmallScreen && { fontSize: 8 },
+                  isSmallScreen && { fontSize: 9 },
+                  isLargeScreen && { fontSize: 12 },
+                ]}
+              >
+                v1.0.0
+              </Text>
             </View>
           </View>
         </ScrollView>
@@ -388,46 +658,119 @@ export default function LoginScreen() {
         onRequestClose={() => setResetPasswordModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.resetModalContainer}>
+          <View
+            style={[
+              styles.resetModalContainer,
+              isExtraSmallScreen && { width: "95%", maxHeight: "95%", maxWidth: 300 },
+              isSmallScreen && { width: "90%", maxHeight: "90%", maxWidth: 350 },
+              isMediumScreen && { width: "80%", maxHeight: "85%", maxWidth: 450 },
+              isLargeScreen && { width: "70%", maxHeight: "80%", maxWidth: 550 },
+            ]}
+          >
             <View style={styles.resetModalHeader}>
-              <Text style={styles.resetModalTitle}>Reset Password</Text>
+              <Text
+                style={[
+                  styles.resetModalTitle,
+                  isExtraSmallScreen && { fontSize: 16 },
+                  isSmallScreen && { fontSize: 18 },
+                  isLargeScreen && { fontSize: 22 },
+                ]}
+              >
+                Reset Password
+              </Text>
               <TouchableOpacity
                 onPress={() => setResetPasswordModalVisible(false)}
                 style={styles.resetModalCloseButton}
               >
-                <Ionicons name="close" size={24} color="#333" />
+                <Ionicons
+                  name="close"
+                  size={isExtraSmallScreen ? 18 : isSmallScreen ? 20 : 24}
+                  color="#333"
+                />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.resetModalContent}>
+            <ScrollView
+              style={[
+                styles.resetModalContent,
+                isExtraSmallScreen && { paddingHorizontal: 14, paddingVertical: 16 },
+                isSmallScreen && { paddingHorizontal: 16, paddingVertical: 20 },
+              ]}
+            >
               {resetSuccess ? (
                 <View style={styles.successContainer}>
                   <Ionicons
                     name="checkmark-circle"
-                    size={60}
+                    size={isSmallScreen ? 50 : 60}
                     color="#1f8e4d"
                   />
-                  <Text style={styles.successTitle}>Email Sent!</Text>
-                  <Text style={styles.successMessage}>
+                  <Text
+                    style={[
+                      styles.successTitle,
+                      isSmallScreen && { fontSize: 18 },
+                    ]}
+                  >
+                    Email Sent!
+                  </Text>
+                  <Text
+                    style={[
+                      styles.successMessage,
+                      isSmallScreen && { fontSize: 13 },
+                    ]}
+                  >
                     Check your email for password reset instructions.
                   </Text>
                 </View>
               ) : (
                 <>
-                  <Text style={styles.resetLabel}>
+                  <Text
+                    style={[
+                      styles.resetLabel,
+                      isExtraSmallScreen && { fontSize: 11 },
+                      isSmallScreen && { fontSize: 12 },
+                      isLargeScreen && { fontSize: 15 },
+                    ]}
+                  >
                     Enter your email or ID to receive a password reset link.
                   </Text>
 
-                  <View style={styles.resetInputGroup}>
-                    <Text style={styles.resetInputLabel}>Email or ID</Text>
-                    <View style={styles.resetInputWrapper}>
+                  <View
+                    style={[
+                      styles.resetInputGroup,
+                      isExtraSmallScreen && { marginBottom: 12 },
+                      isSmallScreen && { marginBottom: 14 },
+                      isLargeScreen && { marginBottom: 20 },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.resetInputLabel,
+                        isExtraSmallScreen && { fontSize: 11 },
+                        isSmallScreen && { fontSize: 12 },
+                        isLargeScreen && { fontSize: 14 },
+                      ]}
+                    >
+                      Email or ID
+                    </Text>
+                    <View
+                      style={[
+                        styles.resetInputWrapper,
+                        isExtraSmallScreen && { paddingHorizontal: 8 },
+                        isSmallScreen && { paddingHorizontal: 10 },
+                      ]}
+                    >
                       <Ionicons
                         name="mail-outline"
-                        size={18}
+                        size={isExtraSmallScreen ? 14 : isSmallScreen ? 16 : 18}
                         color="#7d8a99"
                       />
                       <TextInput
-                        style={styles.resetInput}
+                        style={[
+                          styles.resetInput,
+                          isExtraSmallScreen && { fontSize: 13, paddingVertical: 10 },
+                          isSmallScreen && { fontSize: 14 },
+                          isLargeScreen && { fontSize: 15 },
+                        ]}
                         placeholder="Enter your email or student/employee ID"
                         placeholderTextColor="#b0b7c1"
                         value={resetEmail}
@@ -442,6 +785,9 @@ export default function LoginScreen() {
                     style={[
                       styles.resetButton,
                       resetLoading && styles.resetButtonDisabled,
+                      isExtraSmallScreen && { paddingVertical: 10 },
+                      isSmallScreen && { paddingVertical: 12 },
+                      isLargeScreen && { paddingVertical: 14 },
                     ]}
                     onPress={handlePasswordReset}
                     disabled={resetLoading}
@@ -450,18 +796,39 @@ export default function LoginScreen() {
                     {resetLoading ? (
                       <ActivityIndicator color="#fff" size="small" />
                     ) : (
-                      <Text style={styles.resetButtonText}>
+                      <Text
+                        style={[
+                          styles.resetButtonText,
+                          isExtraSmallScreen && { fontSize: 12 },
+                          isSmallScreen && { fontSize: 13 },
+                          isLargeScreen && { fontSize: 16 },
+                        ]}
+                      >
                         Send Reset Link
                       </Text>
                     )}
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={styles.resetCancelButton}
+                    style={[
+                      styles.resetCancelButton,
+                      isExtraSmallScreen && { paddingVertical: 8 },
+                      isSmallScreen && { paddingVertical: 10 },
+                      isLargeScreen && { paddingVertical: 12 },
+                    ]}
                     onPress={() => setResetPasswordModalVisible(false)}
                     disabled={resetLoading}
                   >
-                    <Text style={styles.resetCancelButtonText}>Cancel</Text>
+                    <Text
+                      style={[
+                        styles.resetCancelButtonText,
+                        isExtraSmallScreen && { fontSize: 11 },
+                        isSmallScreen && { fontSize: 12 },
+                        isLargeScreen && { fontSize: 14 },
+                      ]}
+                    >
+                      Cancel
+                    </Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -489,6 +856,7 @@ const styles = StyleSheet.create({
     height: 180,
     borderRadius: 90,
     backgroundColor: "rgba(31, 142, 77, 0.08)",
+    zIndex: 0,
   },
   backgroundShapeBottom: {
     position: "absolute",
@@ -498,12 +866,36 @@ const styles = StyleSheet.create({
     height: 220,
     borderRadius: 110,
     backgroundColor: "rgba(17, 65, 42, 0.05)",
+    zIndex: 0,
   },
   container: {
     flexGrow: 1,
     paddingHorizontal: 18,
     paddingTop: 18,
     paddingBottom: 36,
+  },
+  containerExtraSmall: {
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 20,
+  },
+  containerSmall: {
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 24,
+  },
+  containerMedium: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 28,
+  },
+  containerShort: {
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  containerExtraTall: {
+    paddingTop: 24,
+    paddingBottom: 48,
   },
   contentShell: {
     width: "100%",
@@ -810,6 +1202,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     backgroundColor: "#f8fbf9",
+    minHeight: 48,
   },
   resetInput: {
     flex: 1,
