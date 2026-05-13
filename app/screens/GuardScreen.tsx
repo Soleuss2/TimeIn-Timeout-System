@@ -1,10 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Camera, CameraView } from "expo-camera";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState, useRef } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
     Animated,
+    BackHandler,
+    KeyboardAvoidingView,
     Platform,
+    PanResponder,
     SafeAreaView,
     ScrollView,
     StatusBar,
@@ -78,12 +81,49 @@ export default function GuardScreen() {
     buttons: [],
   });
 
+  // PanResponder for swipe gesture detection
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only activate if there's significant horizontal movement and minimal vertical movement
+        return Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 20;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        // Detect left or right swipe (threshold of 50 pixels)
+        const SWIPE_THRESHOLD = 50;
+        if (gestureState.dx > SWIPE_THRESHOLD || gestureState.dx < -SWIPE_THRESHOLD) {
+          // Swipe detected - show logout confirmation
+          handleLogout();
+        }
+      },
+    })
+  ).current;
+
   useEffect(() => {
     (async () => {
       const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === "granted");
     })();
   }, []);
+
+  // Handle back button press and swipe gestures
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        // Show logout confirmation instead of exiting
+        handleLogout();
+        return true; // Prevent default back behavior
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [])
+  );
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     if (scannedData) return;
@@ -373,7 +413,7 @@ export default function GuardScreen() {
         : "Requesting camera permission...";
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} {...panResponder.panHandlers}>
       <LoaderComponent
         visible={logoutLoading}
         message="Logging out..."
@@ -395,7 +435,12 @@ export default function GuardScreen() {
       <View style={styles.backgroundShapeTop} />
       <View style={styles.backgroundShapeBottom} />
 
-      <View style={styles.header}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
+        <View style={styles.header}>
         <View style={styles.headerCopy}>
           <Text style={styles.headerTitle}>Guard Portal</Text>
           <Text style={styles.headerSubtitle}>Gate Scanner</Text>
@@ -423,6 +468,7 @@ export default function GuardScreen() {
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <Animated.View
           style={[
@@ -510,7 +556,7 @@ export default function GuardScreen() {
           <View style={styles.manualCard}>
             <Text style={styles.cardLabel}>Manual Plate Entry</Text>
             <Text style={styles.manualHint}>
-              Use this when a visitor arrives without a QR pass.
+              Use this when the QR code is not working.
             </Text>
             <TextInput
               style={styles.input}
@@ -530,6 +576,8 @@ export default function GuardScreen() {
           </View>
         </Animated.View>
       </ScrollView>
+      </KeyboardAvoidingView>
+
       <NotificationHistoryModal
         visible={historyModalVisible}
         onClose={() => setHistoryModalVisible(false)}

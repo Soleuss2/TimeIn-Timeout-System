@@ -1144,19 +1144,32 @@ export const AdminService = {
         }
       });
 
-      // Convert to array format with calculated heights (max 100)
-      const maxCount = Math.max(...Object.values(hourCounts), 1);
+      // Calculate aggregated data for 2-hour intervals
+      const displayHours = [6, 8, 10, 12, 14, 16, 18, 20, 22];
+      const aggregatedData = displayHours.map((hour) => {
+        const count = (hourCounts[hour] || 0) + (hourCounts[hour + 1] || 0);
+        return { hour, count };
+      });
+
+      const maxCount = Math.max(...aggregatedData.map((d) => d.count), 1);
       const hoursData: ParkingHourData[] = [];
 
-      // Show key hours (6 AM - 6 PM)
-      const displayHours = [6, 9, 12, 15, 18];
-      for (const hour of displayHours) {
-        const count = hourCounts[hour] || 0;
-        const height = (count / maxCount) * 100;
+      for (const item of aggregatedData) {
+        const height = (item.count / maxCount) * 100;
+
+        // Format hour as 12-hour time with AM/PM
+        let displayHour = item.hour;
+        let period = "AM";
+        if (item.hour >= 12) {
+          period = "PM";
+          if (item.hour > 12) {
+            displayHour = item.hour - 12;
+          }
+        }
 
         hoursData.push({
-          hour: `${hour}:00`,
-          count,
+          hour: `${displayHour}${period}`,
+          count: item.count,
           height: Math.max(height, 20), // Minimum visible height
         });
       }

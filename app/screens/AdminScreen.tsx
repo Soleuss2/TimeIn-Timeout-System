@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import React, {
   useState,
   useEffect,
@@ -20,6 +20,9 @@ import {
   Modal,
   Alert,
   Animated,
+  GestureResponderEvent,
+  PanResponder,
+  BackHandler,
 } from "react-native";
 import { LoaderComponent } from "../../components/LoaderComponent";
 import { CustomAlert, AlertAction } from "../../components/CustomAlert";
@@ -44,6 +47,40 @@ export default function AdminScreen() {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  // ── Swipe gesture tracking for logout ────────────────────────────────────
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 20;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const SWIPE_THRESHOLD = 50;
+        if (gestureState.dx > SWIPE_THRESHOLD || gestureState.dx < -SWIPE_THRESHOLD) {
+          handleLogout();
+        }
+      },
+    })
+  ).current;
+
+  // Handle back button press and swipe gestures
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        handleLogout();
+        return true;
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [])
+  );
+  // ─────────────────────────────────────────────────────────────────────────
 
   // ── Alert state (reused from campus parking access portal) ────────────────────────────
   const [alertVisible, setAlertVisible] = useState(false);
@@ -261,6 +298,16 @@ export default function AdminScreen() {
     }
   }, [currentScreen, fetchAnalyticsData]);
 
+  // ── Reset modal state when modal closes ───────────────────────────────────
+  useEffect(() => {
+    if (!userDetailModalVisible) {
+      setErrorMessage("");
+      setSuccessMessage("");
+      setEditingUser(false);
+    }
+  }, [userDetailModalVisible]);
+  // ─────────────────────────────────────────────────────────────────────────
+
   // No debounce needed — search is now purely in-memory via Trie/Levenshtein
   const toggleSort = (key: string) => {
     if (sortKey === key) {
@@ -270,6 +317,8 @@ export default function AdminScreen() {
       setSortOrder("asc");
     }
   };
+
+  // handleHeaderSwipeStart/End removed in favor of global PanResponder
 
   const handleLogout = () => {
     setAlertConfig({
@@ -372,6 +421,49 @@ export default function AdminScreen() {
         ...prev,
         studentId: cleaned,
       }));
+    } else if (field === "employeeId") {
+      // Auto-format employee ID based on role: XXX - 0000
+      let cleaned = value.toUpperCase();
+      let numbers = cleaned.replace(/[^0-9]/g, "").slice(0, 4);
+      
+      if (numbers.length > 0) {
+        const rolePrefix = newAccountRole === "faculty" ? "FAC" : newAccountRole === "staff" ? "STF" : "GRD";
+        setNewAccountData((prev) => ({
+          ...prev,
+          employeeId: `${rolePrefix} - ${numbers}`,
+        }));
+      } else {
+        // If they cleared the numbers, just let them clear the field
+        setNewAccountData((prev) => ({
+          ...prev,
+          employeeId: "",
+        }));
+      }
+    } else if (field === "vehiclePlate") {
+      // Auto-format vehicle plate: ABC 1234 (3 letters + 4 numbers)
+      let cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      
+      if (cleaned.length === 0) {
+        setNewAccountData((prev) => ({
+          ...prev,
+          vehiclePlate: cleaned,
+        }));
+      } else {
+        // Extract letters and numbers
+        let letters = cleaned.replace(/[^A-Z]/g, "").slice(0, 3);
+        let numbers = cleaned.replace(/[^0-9]/g, "").slice(0, 4);
+        
+        // Format as ABC 1234 (with space)
+        const formatted = letters && numbers ? `${letters} ${numbers}` : letters;
+        
+        // Limit total to 8 chars (ABC 1234)
+        cleaned = formatted.slice(0, 8);
+        
+        setNewAccountData((prev) => ({
+          ...prev,
+          vehiclePlate: cleaned,
+        }));
+      }
     } else {
       setNewAccountData((prev) => ({
         ...prev,
@@ -435,12 +527,56 @@ export default function AdminScreen() {
         setErrorMessage("Employee ID is required");
         return false;
       }
+
+      // Validate employee ID format: XXX - 0000
+      const rolePrefix = newAccountRole === "faculty" ? "FAC" : newAccountRole === "staff" ? "STF" : "GRD";
+      const employeeIdRegex = /^[A-Z]{3} - \d{4}$/;
+      
+      if (!employeeIdRegex.test(employeeId)) {
+        setErrorMessage(`Employee ID must be in format ${rolePrefix} - 0000 (e.g., ${rolePrefix} - 1234)`);
+        return false;
+      }
+
+      // Validate the prefix matches the role
+      const actualPrefix = employeeId.split(" - ")[0];
+      if (actualPrefix !== rolePrefix) {
+        setErrorMessage(`${newAccountRole.charAt(0).toUpperCase() + newAccountRole.slice(1)} Employee ID must start with ${rolePrefix}`);
+        return false;
+      }
+
       if (duplicateChecker.current.hasEmployeeId(employeeId)) {
         setErrorMessage("Employee ID is already registered.");
         return false;
       }
     }
     // ────────────────────────────────────────────────────────────────────
+
+    // Validate vehicle plate (if provided) - format: ABC 1234
+    if (newAccountData.vehiclePlate.trim()) {
+      const plateRegex = /^[A-Z]{3} \d{4}$/;
+      if (!plateRegex.test(newAccountData.vehiclePlate)) {
+        setErrorMessage("Vehicle plate must be in format ABC 1234 (3 letters + 4 numbers)");
+        return false;
+      }
+
+      // Check for duplicate plate
+      if (duplicateChecker.current.hasVehiclePlate(newAccountData.vehiclePlate)) {
+        setErrorMessage("Vehicle plate is already registered.");
+        return false;
+      }
+    }
+
+    // Validate vehicle type (must be selected if plate is provided)
+    if (newAccountData.vehiclePlate.trim() && !newAccountData.vehicleType) {
+      setErrorMessage("Vehicle type is required when a plate number is provided");
+      return false;
+    }
+
+    // Validate that ebike doesn't have a plate
+    if (newAccountData.vehicleType === "Ebike" && newAccountData.vehiclePlate.trim()) {
+      setErrorMessage("E-bikes do not need a plate number");
+      return false;
+    }
 
     return true;
   };
@@ -797,8 +933,12 @@ export default function AdminScreen() {
                   setEditingUserData({
                     firstName: user.firstName,
                     lastName: user.lastName,
+                    studentId: user.studentId || "",
+                    employeeId: user.employeeId || "",
                   });
                   setEditingUser(false);
+                  setErrorMessage("");
+                  setSuccessMessage("");
                   setUserDetailModalVisible(true);
                 }}
               >
@@ -1406,15 +1546,31 @@ export default function AdminScreen() {
       {/* Messages */}
       {!!errorMessage && (
         <View style={styles.errorAlert}>
-          <Ionicons name="alert-circle" size={18} color="#ef4444" />
-          <Text style={styles.errorAlertText}>{errorMessage}</Text>
+          <View style={styles.alertContent}>
+            <Ionicons name="alert-circle" size={18} color="#ef4444" />
+            <Text style={styles.errorAlertText}>{errorMessage}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => setErrorMessage("")}
+            style={styles.alertCloseBtn}
+          >
+            <Ionicons name="close" size={20} color="#ef4444" />
+          </TouchableOpacity>
         </View>
       )}
 
       {!!successMessage && (
         <View style={styles.successAlert}>
-          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-          <Text style={styles.successAlertText}>{successMessage}</Text>
+          <View style={styles.alertContent}>
+            <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+            <Text style={styles.successAlertText}>{successMessage}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => setSuccessMessage("")}
+            style={styles.alertCloseBtn}
+          >
+            <Ionicons name="close" size={20} color="#10b981" />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -1677,7 +1833,7 @@ export default function AdminScreen() {
           <Text style={styles.fieldLabel}>{"Vehicle Plate Number"}</Text>
           <TextInput
             style={styles.textInput}
-            placeholder="ABC-123"
+            placeholder="ABC 1234"
             placeholderTextColor="#d1d5db"
             autoCapitalize="characters"
             editable={!creatingAccount}
@@ -1692,7 +1848,7 @@ export default function AdminScreen() {
           <Text style={styles.fieldLabel}>{"Employee ID *"}</Text>
           <TextInput
             style={styles.textInput}
-            placeholder={newAccountRole === "faculty" ? "FAC-001" : "STAFF-001"}
+            placeholder={newAccountRole === "faculty" ? "FAC-1234" : "STF-1234"}
             placeholderTextColor="#d1d5db"
             editable={!creatingAccount}
             value={newAccountData.employeeId}
@@ -1782,7 +1938,7 @@ export default function AdminScreen() {
           <Text style={styles.fieldLabel}>{"Vehicle Plate Number"}</Text>
           <TextInput
             style={styles.textInput}
-            placeholder="ABC-123"
+            placeholder="ABC 1234"
             placeholderTextColor="#d1d5db"
             autoCapitalize="characters"
             editable={!creatingAccount}
@@ -1797,7 +1953,7 @@ export default function AdminScreen() {
           <Text style={styles.fieldLabel}>{"Employee ID *"}</Text>
           <TextInput
             style={styles.textInput}
-            placeholder="GRD-001"
+            placeholder="GRD-1234"
             placeholderTextColor="#d1d5db"
             editable={!creatingAccount}
             value={newAccountData.employeeId}
@@ -1849,6 +2005,11 @@ export default function AdminScreen() {
         }}
       >
         <SafeAreaView style={styles.modalSafeArea}>
+          <LoaderComponent
+            visible={updatingUser}
+            message="Updating user..."
+            logoSize={80}
+          />
           <View style={styles.modalHeader}>
             <TouchableOpacity
               onPress={() => {
@@ -1982,6 +2143,66 @@ export default function AdminScreen() {
                     placeholderTextColor="#d1d5db"
                   />
                 </View>
+
+                {userType === "students" ? (
+                  <View style={styles.editField}>
+                    <Text style={styles.editLabel}>Student ID</Text>
+                    <TextInput
+                      style={styles.editInput}
+                      value={editingUserData.studentId}
+                      onChangeText={(value) => {
+                        let cleaned = value.replace(/[^0-9]/g, "");
+                        if (cleaned.length > 2) {
+                          cleaned = cleaned.slice(0, 2) + "-" + cleaned.slice(2);
+                        }
+                        cleaned = cleaned.slice(0, 7);
+                        setEditingUserData({
+                          ...editingUserData,
+                          studentId: cleaned,
+                        });
+                      }}
+                      placeholder="Student ID"
+                      placeholderTextColor="#d1d5db"
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.editField}>
+                    <Text style={styles.editLabel}>
+                      {userType === "guards"
+                        ? "Guard ID"
+                        : userType === "faculty"
+                          ? "Faculty ID"
+                          : "Staff ID"}
+                    </Text>
+                    <TextInput
+                      style={styles.editInput}
+                      value={editingUserData.employeeId}
+                      onChangeText={(value) => {
+                        let cleaned = value.toUpperCase();
+                        let numbers = cleaned.replace(/[^0-9]/g, "").slice(0, 4);
+                        if (numbers.length === 0) {
+                          setEditingUserData({
+                            ...editingUserData,
+                            employeeId: "",
+                          });
+                        } else {
+                          const rolePrefix =
+                            userType === "guards"
+                              ? "GRD"
+                              : userType === "faculty"
+                                ? "FAC"
+                                : "STF";
+                          setEditingUserData({
+                            ...editingUserData,
+                            employeeId: `${rolePrefix} - ${numbers}`,
+                          });
+                        }
+                      }}
+                      placeholder="Employee ID"
+                      placeholderTextColor="#d1d5db"
+                    />
+                  </View>
+                )}
               </View>
             )}
 
@@ -2037,7 +2258,7 @@ export default function AdminScreen() {
                                 const response =
                                   await AdminService.toggleUserStatus(
                                     selectedUser.id,
-                                    userType.slice(0, -1) as any, // "students" -> "student"
+                                    selectedUser.role,
                                     adminId,
                                   );
                                 if (response.success) {
@@ -2094,10 +2315,12 @@ export default function AdminScreen() {
                       try {
                         const response = await AdminService.updateUserAccount(
                           selectedUser.id,
-                          userType.slice(0, -1) as any,
+                          selectedUser.role,
                           {
                             firstName: editingUserData.firstName,
                             lastName: editingUserData.lastName,
+                            studentId: editingUserData.studentId,
+                            employeeId: editingUserData.employeeId,
                           },
                           adminId,
                         );
@@ -2284,10 +2507,16 @@ export default function AdminScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} {...panResponder.panHandlers}>
       <LoaderComponent
-        visible={logoutLoading}
-        message="Logging out..."
+        visible={logoutLoading || creatingAccount || updatingUser}
+        message={
+          logoutLoading
+            ? "Logging out..."
+            : creatingAccount
+              ? "Creating account..."
+              : "Updating user..."
+        }
         logoSize={100}
       />
       <CustomAlert
@@ -2301,7 +2530,10 @@ export default function AdminScreen() {
         <StatusBar barStyle="light-content" backgroundColor="#1d2934" />
       )}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Admin Portal</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Admin Portal</Text>
+          <Text style={styles.headerHint}>Swipe left to logout</Text>
+        </View>
         <TouchableOpacity style={styles.headerButton} onPress={handleLogout}>
           <Ionicons name="exit-outline" size={20} color="#fff" />
         </TouchableOpacity>
@@ -2421,6 +2653,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#2e3a4c",
     justifyContent: "center",
     alignItems: "center",
+  },
+  headerContent: {
+    flex: 1,
+  },
+  headerHint: {
+    color: "#9ca3af",
+    fontSize: 11,
+    marginTop: 4,
+    fontStyle: "italic",
   },
   container: {
     padding: 22,
@@ -3267,8 +3508,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     borderLeftWidth: 4,
     borderLeftColor: "#ef4444",
+  },
+  alertContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
   },
   errorAlertText: {
     color: "#991b1b",
@@ -3285,6 +3532,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     borderLeftWidth: 4,
     borderLeftColor: "#10b981",
   },
@@ -3294,6 +3542,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginLeft: 12,
     flex: 1,
+  },
+  alertCloseBtn: {
+    padding: 4,
+    marginLeft: 8,
   },
   infoBox: {
     backgroundColor: "#ecfdf5",

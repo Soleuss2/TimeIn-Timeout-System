@@ -50,39 +50,33 @@ const resolveIdentifierToEmail = async (identifier: string): Promise<string | nu
     return SecurityService.validateEmail(sanitized) ? sanitized : null;
   }
   
-  // STEP 2: Search in students collection by studentId
-  try {
-    const studentsRef = collection(db, "students");
-    const q = query(
-      studentsRef,
-      where("studentId", "==", sanitized)
-    );
-    const snapshot = await getDocs(q);
-    if (snapshot.size > 0) {
-      const userData = snapshot.docs[0].data();
-      return userData.email || null;
+  // STEP 2: Search in collections by ID (Cascading Search)
+  const searchConfigs = [
+    { coll: "students", field: "studentId" },
+    { coll: "faculty", field: "employeeId" },
+    { coll: "staff", field: "employeeId" },
+    { coll: "guards", field: "employeeId" },
+    { coll: "admins", field: "employeeId" }
+  ];
+
+  for (const config of searchConfigs) {
+    try {
+      const collRef = collection(db, config.coll);
+      const q = query(
+        collRef,
+        where(config.field, "==", sanitized)
+      );
+      const snapshot = await getDocs(q);
+      if (snapshot.size > 0) {
+        const userData = snapshot.docs[0].data();
+        if (userData.email) return userData.email;
+      }
+    } catch (error) {
+      console.error(`Error searching ${config.coll} by ID:`, error);
     }
-  } catch (error) {
-    console.error("Error searching students by ID:", error);
   }
   
-  // STEP 3: Search in guards collection by employeeId
-  try {
-    const guardsRef = collection(db, "guards");
-    const q = query(
-      guardsRef,
-      where("employeeId", "==", sanitized)
-    );
-    const snapshot = await getDocs(q);
-    if (snapshot.size > 0) {
-      const userData = snapshot.docs[0].data();
-      return userData.email || null;
-    }
-  } catch (error) {
-    console.error("Error searching guards by ID:", error);
-  }
-  
-  // STEP 4: Try as username with domain suffix
+  // STEP 3: Try as username with domain suffix
   const emailFromUsername = `${sanitized}@qcu.edu.ph`;
   return SecurityService.validateEmail(emailFromUsername) ? emailFromUsername : null;
 };

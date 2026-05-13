@@ -1,14 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system/legacy";
-import * as MediaLibrary from "expo-media-library";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import React, { type ComponentType, useRef, useState, useEffect, useCallback } from "react";
 import {
   ActivityIndicator,
   Animated,
-  BackHandler,
   Modal,
-  PanResponder,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -18,6 +14,8 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  PanResponder,
+  BackHandler,
 } from "react-native";
 import { AuthService, User } from "../../services/authService";
 import { db } from "../../services/firebaseConfig";
@@ -53,7 +51,6 @@ export default function StudentScreen() {
   const { width } = useWindowDimensions();
   const isCompactLayout = width < 700;
   const qrRef = useRef<any>(null);
-  const [downloading, setDownloading] = useState(false);
   const [student, setStudent] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [plateNumber, setPlateNumber] = useState<string | null>(null);
@@ -80,9 +77,6 @@ export default function StudentScreen() {
   const heroCardAnim = useRef(new Animated.Value(0)).current;
   const qrCardAnim = useRef(new Animated.Value(0)).current;
   const detailsAnim = useRef(new Animated.Value(0)).current;
-
-  // Press animation for interactive buttons
-  const [downloadPressAnim] = useState(new Animated.Value(1));
 
   // Get notifications for this user
   const { notifications, clearNotification } = useUserNotifications(
@@ -114,19 +108,23 @@ export default function StudentScreen() {
     })
   ).current;
 
-  const onDownloadPressIn = () => {
-    Animated.spring(downloadPressAnim, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start();
-  };
+  // Handle back button press and swipe gestures
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        // Show logout confirmation instead of exiting
+        handleLogout();
+        return true; // Prevent default back behavior
+      };
 
-  const onDownloadPressOut = () => {
-    Animated.spring(downloadPressAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-  };
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [])
+  );
 
   // Fetch student data from Firebase
   useEffect(() => {
@@ -224,24 +222,6 @@ export default function StudentScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle back button press and swipe gestures
-  useFocusEffect(
-    useCallback(() => {
-      const onBackPress = () => {
-        // Show logout confirmation instead of exiting
-        handleLogout();
-        return true; // Prevent default back behavior
-      };
-
-      const subscription = BackHandler.addEventListener(
-        "hardwareBackPress",
-        onBackPress
-      );
-
-      return () => subscription.remove();
-    }, [])
-  );
-
   // Trigger smooth animations
   const triggerAnimations = () => {
     // Fade in and scale main content
@@ -292,157 +272,6 @@ export default function StudentScreen() {
     plateNumber: plateNumber,
     timestamp: new Date().toISOString(),
   });
-
-  const handleDownloadQR = async () => {
-    if (!QRCode) {
-      setAlertConfig({
-        title: "QR Unavailable",
-        message: "The QR code renderer failed to load.",
-        type: "error",
-        buttons: [
-          {
-            text: "OK",
-            onPress: () => setAlertVisible(false),
-            style: "default",
-          },
-        ],
-      });
-      setAlertVisible(true);
-      return;
-    }
-
-    setDownloading(true);
-    try {
-      if (Platform.OS === "web") {
-        // Web: Use html2canvas for download (same as before - works great)
-        const html2canvas = (await import("html2canvas")).default;
-        const element = document.getElementById("student-qr-download-target");
-
-        if (!element) {
-          throw new Error("QR download target not found.");
-        }
-
-        const canvas = await html2canvas(element, {
-          backgroundColor: "#ffffff",
-          scale: 2,
-        });
-
-        const link = document.createElement("a");
-        link.href = canvas.toDataURL("image/png");
-        link.download = `qcu-student-qr-${student?.id}-${Date.now()}.png`;
-        link.click();
-        
-        setAlertConfig({
-          title: "Success",
-          message: "QR code downloaded successfully.",
-          type: "success",
-          buttons: [
-            {
-              text: "OK",
-              onPress: () => setAlertVisible(false),
-              style: "default",
-            },
-          ],
-        });
-        setAlertVisible(true);
-        return;
-      }
-
-      // Mobile: Save to device photo library directly (simplified, like web)
-      if (!qrRef.current) {
-        throw new Error("QR code is not ready yet.");
-      }
-
-      // Generate base64 from QR code
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        try {
-          qrRef.current.toDataURL((data: string) => {
-            resolve(data);
-          });
-        } catch (error) {
-          reject(error);
-        }
-      });
-
-      if (!base64Data) {
-        throw new Error("Failed to generate QR code data.");
-      }
-
-      // Clean up base64 data (remove data URI prefix if present)
-      const cleanBase64 = base64Data.includes(",") 
-        ? base64Data.split(",")[1] 
-        : base64Data;
-
-      // Save to file temporarily
-      const fileName = `QCU_Student_QR_${student?.id}.png`;
-      const fileUri = `${(FileSystem as any).documentDirectory}${fileName}`;
-
-      // Write file to document directory
-      await FileSystem.writeAsStringAsync(fileUri, cleanBase64, {
-        encoding: "base64",
-      });
-
-      // Request media library permissions (if needed)
-      try {
-        const { status } = await MediaLibrary.requestPermissionsAsync();
-        
-        if (status !== "granted") {
-          throw new Error(
-            "Photo library permission denied. Please enable it in settings to save QR codes."
-          );
-        }
-      } catch (permError) {
-        console.warn("Permission request warning:", permError);
-        // Continue anyway - permissions might be pre-granted or handle error
-      }
-
-      // Save to photo library
-      try {
-        await MediaLibrary.createAssetAsync(fileUri);
-      } catch (saveError) {
-        // If media library save fails, still show success since file is saved
-        console.warn("Media library save warning:", saveError);
-      }
-
-      // Clean up temp file
-      try {
-        await FileSystem.deleteAsync(fileUri);
-      } catch {
-        // Ignore cleanup errors
-      }
-
-      setAlertConfig({
-        title: "Success",
-        message: "QR code saved to your photo library!",
-        type: "success",
-        buttons: [
-          {
-            text: "OK",
-            onPress: () => setAlertVisible(false),
-            style: "default",
-          },
-        ],
-      });
-      setAlertVisible(true);
-    } catch (error) {
-      console.error("QR download error:", error);
-      setAlertConfig({
-        title: "Error",
-        message: error instanceof Error ? error.message : "Failed to download QR code. Please try again.",
-        type: "error",
-        buttons: [
-          {
-            text: "OK",
-            onPress: () => setAlertVisible(false),
-            style: "default",
-          },
-        ],
-      });
-      setAlertVisible(true);
-    } finally {
-      setDownloading(false);
-    }
-  };
 
   const handleLogout = async () => {
     setAlertConfig({
@@ -555,34 +384,33 @@ export default function StudentScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View {...panResponder.panHandlers} style={{ flex: 1 }}>
-        <LoaderComponent
-          visible={logoutLoading}
-          message="Logging out..."
-          logoSize={100}
-        />
-        <CustomAlert
-          visible={alertVisible}
-          title={alertConfig.title}
-          message={alertConfig.message}
-          type={alertConfig.type}
-          buttons={alertConfig.buttons}
-        />
-        <ScanNotificationStack
-          notifications={notifications}
-          onDismiss={clearNotification}
-          onGuard={false}
-        />
-        {Platform.OS !== "web" && (
-          <StatusBar barStyle="light-content" backgroundColor="#11412a" />
-        )}
-        <View style={styles.backgroundShapeTop} />
-        <View style={styles.backgroundShapeBottom} />
+    <SafeAreaView style={styles.safeArea} {...panResponder.panHandlers}>
+      <LoaderComponent
+        visible={logoutLoading}
+        message="Logging out..."
+        logoSize={100}
+      />
+      <CustomAlert
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        buttons={alertConfig.buttons}
+      />
+      <ScanNotificationStack
+        notifications={notifications}
+        onDismiss={clearNotification}
+        onGuard={false}
+      />
+      {Platform.OS !== "web" && (
+        <StatusBar barStyle="light-content" backgroundColor="#11412a" />
+      )}
+      <View style={styles.backgroundShapeTop} />
+      <View style={styles.backgroundShapeBottom} />
 
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Text style={styles.headerTitle}>Student Portal</Text>
+          <Text style={styles.headerTitle}>User Portal</Text>
           <Text style={styles.headerSubtitle}>Access Pass</Text>
         </View>
         <TouchableOpacity
@@ -730,47 +558,15 @@ export default function StudentScreen() {
                 <Text style={styles.studentMeta}>
                   {student.studentId || student.id} · {student.email}
                 </Text>
+
+                <View style={styles.screenshotInstruction}>
+                  <Ionicons name="camera-outline" size={18} color="#1f8e4d" />
+                  <Text style={styles.screenshotText}>
+                    Please take a screenshot for your access pass
+                  </Text>
+                </View>
               </View>
-
-              <TouchableOpacity
-                onPressIn={onDownloadPressIn}
-                onPressOut={onDownloadPressOut}
-                style={[
-                  styles.actionButton,
-                  downloading && styles.actionButtonDisabled,
-                ]}
-                onPress={handleDownloadQR}
-                disabled={downloading}
-              >
-                <Animated.View
-                  style={[
-                    styles.actionButtonContent,
-                    {
-                      transform: [{ scale: downloadPressAnim }],
-                    },
-                  ]}
-                >
-                  {downloading ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <>
-                      <Ionicons
-                        name="download-outline"
-                        size={16}
-                        color="#fff"
-                      />
-                      <Text style={styles.actionButtonText}>
-                        Download QR
-                      </Text>
-                    </>
-                  )}
-                </Animated.View>
-              </TouchableOpacity>
-
-              <Text style={styles.actionHint}>
-                The QR code will be downloaded to your device.
-              </Text>
-            </View>
+              </View>
           </Animated.View>
 
           <Animated.View
@@ -802,7 +598,7 @@ export default function StudentScreen() {
               >
                 <View style={styles.detailHeader}>
                   <Ionicons name="person-outline" size={18} color="#1f8e4d" />
-                  <Text style={styles.detailTitle}>Student Account</Text>
+                  <Text style={styles.detailTitle}>{student.role.charAt(0).toUpperCase() + student.role.slice(1)} Account</Text>
                 </View>
                 <Text style={styles.detailValue}>{student.name}</Text>
                 <Text style={styles.detailMeta}>Email: {student.email}</Text>
@@ -845,7 +641,7 @@ export default function StudentScreen() {
             >
               <Ionicons name="close" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Student Details</Text>
+            <Text style={styles.modalTitle}>Account Details</Text>
             <View style={{ width: 40 }} />
           </View>
 
@@ -906,7 +702,6 @@ export default function StudentScreen() {
         userId={student?.id}
         isGuard={false}
       />
-      </View>
     </SafeAreaView>
   );
 }
@@ -1233,39 +1028,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
   },
-  actionButton: {
-    marginTop: 18,
-    backgroundColor: "#1f8e4d",
-    borderRadius: 16,
-    paddingVertical: 15,
-    alignItems: "center",
-    shadowColor: "#1f8e4d",
-    shadowOpacity: 0.24,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
-  },
-  actionButtonDisabled: {
-    opacity: 0.65,
-  },
-  actionButtonContent: {
+  screenshotInstruction: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 20,
+    backgroundColor: "#f0f7f2",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#d1e7d8",
   },
-  actionButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "800",
+  screenshotText: {
+    color: "#1f8e4d",
+    fontSize: 13,
+    fontWeight: "700",
     marginLeft: 8,
-    letterSpacing: 0.4,
-  },
-  actionHint: {
-    color: "#70808f",
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 10,
-    textAlign: "center",
   },
   detailsRow: {
     flexDirection: "row",

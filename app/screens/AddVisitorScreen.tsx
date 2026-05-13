@@ -53,6 +53,7 @@ export default function AddVisitorScreen() {
   const [savedName, setSavedName] = useState("");
   const [savedPurpose, setSavedPurpose] = useState("");
   const [savedPlate, setSavedPlate] = useState("");
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
 
   // ── Custom alert ──
   const [alertVisible, setAlertVisible] = useState(false);
@@ -219,6 +220,30 @@ export default function AddVisitorScreen() {
       return;
     }
 
+    // Plate number validation based on vehicle type
+    const carRegex = /^[A-Z]{3} \d{4}$/;
+    const motoRegex = /^\d{3} [A-Z]{3}$/;
+    
+    const isCar = vehicleType === "Cars";
+    const regex = isCar ? carRegex : motoRegex;
+    const example = isCar ? "ABC 1234" : "123 ABC";
+
+    if (!regex.test(plateNumber.trim().toUpperCase())) {
+      showAlert(
+        "Validation",
+        `Plate number must be in format ${example} for ${vehicleType}.`,
+        "warning",
+        [
+          {
+            text: "OK",
+            onPress: () => setAlertVisible(false),
+            style: "default",
+          },
+        ],
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const result = await registerVisitor({
@@ -234,7 +259,8 @@ export default function AddVisitorScreen() {
         setSavedPurpose(visitPurpose.trim());
         setSavedPlate(plateNumber.trim().toUpperCase());
         setGeneratedId(result.visitorId);
-        runSuccessEntrance(); // Note: vehicleType not persisted in current design
+        setExpiresAt(result.expiresAt); // Add state for this
+        runSuccessEntrance();
       } else {
         showAlert("Error", result.message || "Failed to register visitor.", "error", [
           { text: "OK", onPress: () => setAlertVisible(false), style: "default" },
@@ -371,6 +397,29 @@ export default function AddVisitorScreen() {
                   </View>
                 </>
               ) : null}
+
+              <View style={styles.detailDivider} />
+
+              <View style={styles.detailRow}>
+                <View style={styles.detailIconWrap}>
+                  <Ionicons name="time" size={16} color="#ef4444" />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={[styles.detailLabel, { color: "#ef4444" }]}>
+                    EXPIRES AT (12H)
+                  </Text>
+                  <Text style={[styles.detailValue, { color: "#ef4444" }]}>
+                    {expiresAt
+                      ? expiresAt.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }) +
+                        " " +
+                        expiresAt.toLocaleDateString()
+                      : "N/A"}
+                  </Text>
+                </View>
+              </View>
             </View>
 
             {/* Actions */}
@@ -449,7 +498,7 @@ export default function AddVisitorScreen() {
 
           {/* Visitor Full Name */}
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>VISITOR FULL NAME</Text>
+            <Text style={styles.fieldLabel}>VISITOR NAME *</Text>
             <TextInput
               style={[
                 styles.input,
@@ -488,7 +537,7 @@ export default function AddVisitorScreen() {
 
           {/* Vehicle Type — animated dropdown */}
           <View style={[styles.fieldGroup, { zIndex: 10 }]}>
-            <Text style={styles.fieldLabel}>VEHICLE TYPE</Text>
+            <Text style={styles.fieldLabel}>VEHICLE TYPE *</Text>
             <TouchableOpacity
               style={[
                 styles.input,
@@ -553,16 +602,36 @@ export default function AddVisitorScreen() {
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>PLATE NUMBER</Text>
+            <Text style={styles.fieldLabel}>PLATE NUMBER *</Text>
             <TextInput
               style={[
                 styles.input,
                 focusedField === "plate" && styles.inputFocused,
               ]}
-              placeholder="e.g. ABC 1234"
+              placeholder={vehicleType === "Motorcycle" || vehicleType === "EBike" ? "e.g. 123 ABC" : "e.g. ABC 1234"}
               placeholderTextColor="#c0c9d0"
               value={plateNumber}
-              onChangeText={setPlateNumber}
+              onChangeText={(value) => {
+                let cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                if (cleaned.length === 0) {
+                  setPlateNumber("");
+                } else {
+                  if (vehicleType === "Cars") {
+                    let letters = cleaned.replace(/[^A-Z]/g, "").slice(0, 3);
+                    let numbers = cleaned.replace(/[^0-9]/g, "").slice(0, 4);
+                    const formatted =
+                      letters && numbers ? `${letters} ${numbers}` : letters;
+                    setPlateNumber(formatted.slice(0, 8));
+                  } else {
+                    // For Motorcycle / EBike: 123 ABC
+                    let numbers = cleaned.replace(/[^0-9]/g, "").slice(0, 3);
+                    let letters = cleaned.replace(/[^A-Z]/g, "").slice(0, 3);
+                    const formatted =
+                      numbers && letters ? `${numbers} ${letters}` : numbers;
+                    setPlateNumber(formatted.slice(0, 7));
+                  }
+                }
+              }}
               autoCapitalize="characters"
               onFocus={() => setFocusedField("plate")}
               onBlur={() => setFocusedField(null)}

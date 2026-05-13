@@ -634,7 +634,7 @@ export default function LoginScreen() {
                   isLargeScreen && { fontSize: 13 },
                 ]}
               >
-                © 2024 Quezon City University
+                © 2026 Quezon City University
               </Text>
               <Text
                 style={[

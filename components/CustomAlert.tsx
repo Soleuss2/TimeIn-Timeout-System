@@ -140,6 +140,20 @@ export const CustomAlert: React.FC<CustomAlertProps> = ({
           <View
             style={[styles.alertBox, { backgroundColor: getAccentColor() }]}
           >
+            {/* Close Button */}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => {
+                const cancelButton = buttons.find((b) => b.style === "cancel");
+                if (cancelButton) {
+                  cancelButton.onPress();
+                }
+              }}
+              activeOpacity={0.6}
+            >
+              <Ionicons name="close" size={24} color="#666666" />
+            </TouchableOpacity>
+
             {/* Icon */}
             <View style={styles.iconContainer}>
               <Ionicons
@@ -217,9 +231,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 16,
     elevation: 12,
+    position: "relative",
+  },
+  closeButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
   },
   iconContainer: {
     marginBottom: 16,
+    marginTop: 12,
   },
   title: {
     fontSize: 20,

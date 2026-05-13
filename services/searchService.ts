@@ -227,22 +227,30 @@ export class DuplicateChecker {
   private emailSet: Set<string> = new Set();
   private studentIdSet: Set<string> = new Set();
   private employeeIdSet: Set<string> = new Set();
+  private vehiclePlateSet: Set<string> = new Set();
 
   /**
    * Load the existing records into the hash sets.
    * Call this once after fetching from Firestore.
    */
   load(
-    records: Array<{ email?: string; studentId?: string; employeeId?: string }>,
+    records: Array<{
+      email?: string;
+      studentId?: string;
+      employeeId?: string;
+      vehiclePlate?: string;
+    }>,
   ): void {
     this.emailSet.clear();
     this.studentIdSet.clear();
     this.employeeIdSet.clear();
+    this.vehiclePlateSet.clear();
 
     for (const r of records) {
       if (r.email) this.emailSet.add(r.email.toLowerCase());
       if (r.studentId) this.studentIdSet.add(r.studentId.toLowerCase());
       if (r.employeeId) this.employeeIdSet.add(r.employeeId.toLowerCase());
+      if (r.vehiclePlate) this.vehiclePlateSet.add(r.vehiclePlate.toUpperCase());
     }
   }
 
@@ -261,16 +269,24 @@ export class DuplicateChecker {
     return this.employeeIdSet.has(id.toLowerCase());
   }
 
+  /** O(1) — returns true if vehicle plate is already taken */
+  hasVehiclePlate(plate: string): boolean {
+    return this.vehiclePlateSet.has(plate.toUpperCase());
+  }
+
   /** Add a newly created record to keep sets in sync */
   add(record: {
     email?: string;
     studentId?: string;
     employeeId?: string;
+    vehiclePlate?: string;
   }): void {
     if (record.email) this.emailSet.add(record.email.toLowerCase());
     if (record.studentId) this.studentIdSet.add(record.studentId.toLowerCase());
     if (record.employeeId)
       this.employeeIdSet.add(record.employeeId.toLowerCase());
+    if (record.vehiclePlate)
+      this.vehiclePlateSet.add(record.vehiclePlate.toUpperCase());
   }
 }
 
