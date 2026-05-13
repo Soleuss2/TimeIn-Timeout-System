@@ -2070,61 +2070,6 @@ export default function AdminScreen() {
                       {selectedUser.isActive ? "Deactivate" : "Activate"}
                     </Text>
                   </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: "#dc2626" }]}
-                    onPress={() => {
-                      setAlertConfig({
-                        title: "Delete User",
-                        message:
-                          "Are you sure you want to delete this user? This action cannot be undone.",
-                        type: "warning",
-                        buttons: [
-                          {
-                            text: "Cancel",
-                            onPress: () => setAlertVisible(false),
-                            style: "cancel",
-                          },
-                          {
-                            text: "Delete",
-                            onPress: async () => {
-                              setAlertVisible(false);
-                              if (!adminId) {
-                                setErrorMessage("Admin ID not found");
-                                return;
-                              }
-                              setUpdatingUser(true);
-                              try {
-                                const response =
-                                  await AdminService.deleteUserAccount(
-                                    selectedUser.id,
-                                    userType.slice(0, -1) as any,
-                                    adminId,
-                                  );
-                                if (response.success) {
-                                  setSuccessMessage(response.message);
-                                  await fetchUsers();
-                                  setUserDetailModalVisible(false);
-                                } else {
-                                  setErrorMessage(response.message);
-                                }
-                              } catch (error) {
-                                console.error("Error deleting user:", error);
-                                setErrorMessage("Failed to delete user");
-                              } finally {
-                                setUpdatingUser(false);
-                              }
-                            },
-                            style: "destructive",
-                          },
-                        ],
-                      });
-                      setAlertVisible(true);
-                    }}
-                  >
-                    <Ionicons name="trash" size={18} color="#fff" />
-                    <Text style={styles.actionButtonText}>Delete</Text>
-                  </TouchableOpacity>
                 </>
               ) : (
                 <>
