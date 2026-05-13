@@ -459,7 +459,7 @@ export default function AdminScreen() {
       } else {
         // For mobile, save to file system and share
         try {
-          const fileUri = (FileSystem.cacheDirectory || FileSystem.documentDirectory) + filename;
+          const fileUri = ((FileSystem as any).cacheDirectory || (FileSystem as any).documentDirectory) + filename;
           
           await FileSystem.writeAsStringAsync(fileUri, wbout, {
             encoding: "base64",

@@ -99,7 +99,7 @@ export const SecurityService = {
       }
 
       return { locked: false, minutesRemaining: 0 };
-    } catch (_error) {
+    } catch {
       return { locked: false, minutesRemaining: 0 };
     }
   },
@@ -159,7 +159,7 @@ export const SecurityService = {
         attemptsRemaining,
         isNowLocked: attempt.isLocked,
       };
-    } catch (_error) {
+    } catch {
       return { attemptsRemaining: MAX_LOGIN_ATTEMPTS, isNowLocked: false };
     }
   },
@@ -170,7 +170,7 @@ export const SecurityService = {
   clearLoginAttempts: async (email: string): Promise<void> => {
     try {
       await safeRemoveItem(`login_attempt_${email}`);
-    } catch (_error) {}
+    } catch {}
   },
 
   /**
@@ -244,7 +244,7 @@ export const SecurityService = {
       //   method: 'POST',
       //   body: JSON.stringify(eventLog),
       // });
-    } catch (_error) {}
+    } catch {}
   },
 
   /**
@@ -289,7 +289,7 @@ export const SecurityService = {
   clearSecurityLogs: async (): Promise<void> => {
     try {
       await safeRemoveItem("security_logs");
-    } catch (_error) {}
+    } catch {}
   },
 
   /**
