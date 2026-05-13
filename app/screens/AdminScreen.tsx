@@ -1,9 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import * as Sharing from "expo-sharing";
-import * as MediaLibrary from "expo-media-library";
-import * as FileSystem from "expo-file-system/legacy";
-import * as XLSX from "xlsx";
 import React, {
   useState,
   useEffect,
@@ -359,148 +355,6 @@ export default function AdminScreen() {
       ],
     });
     setAlertVisible(true);
-  };
-
-  const handleExportAuditLogs = async () => {
-    try {
-      setLoadingAnalytics(true);
-
-      // Filter logs based on current filters
-      let filteredLogs = filterAndSortAuditLogs(
-        auditLogs,
-        searchQuery,
-        "timestamp",
-        "desc",
-      );
-
-      // Apply date filter
-      if (auditDateFilter !== "All Date") {
-        const now = new Date();
-        const todayStart = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-        );
-        const yesterdayStart = new Date(todayStart);
-        yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-
-        filteredLogs = filteredLogs.filter((log: any) => {
-          const logTime = log.timestamp?.getTime?.() || 0;
-          if (auditDateFilter === "Today")
-            return logTime >= todayStart.getTime();
-          if (auditDateFilter === "Yesterday")
-            return (
-              logTime >= yesterdayStart.getTime() && logTime < todayStart.getTime()
-            );
-          return true;
-        });
-      }
-
-      // Apply entry type filter
-      if (auditEntryFilter !== "All Entry") {
-        const targetRole = auditEntryFilter.toLowerCase();
-        filteredLogs = filteredLogs.filter((log: any) => {
-          const logRole = (log.role || "").toLowerCase();
-          if (targetRole === "guest")
-            return logRole === "visitor" || logRole === "guest";
-          return logRole === targetRole;
-        });
-      }
-
-      // Apply vehicle type filter
-      if (auditVehicleFilter !== "All Vehicles") {
-        const knownTypes = ["car", "motorcycle", "ebike"];
-        filteredLogs = filteredLogs.filter((log: any) => {
-          const vType = (log.vehicleType || "").toLowerCase();
-          if (auditVehicleFilter === "Others") {
-            return !knownTypes.includes(vType);
-          }
-          return vType === auditVehicleFilter.toLowerCase();
-        });
-      }
-
-      // Prepare data for Excel
-      const excelData = filteredLogs.map((log: any) => ({
-        Plate: log.plate,
-        Name: log.name,
-        Role: log.role || "N/A",
-        Type: log.type === "time_in" || log.type === "IN" ? "CHECK IN" : "CHECK OUT",
-        "Vehicle Type": log.vehicleType || "N/A",
-        Time: log.time,
-        Date: log.timestamp
-          ? new Date(log.timestamp).toLocaleDateString()
-          : "N/A",
-      }));
-
-      // Create workbook and worksheet using XLSX
-      const ws = XLSX.utils.json_to_sheet(excelData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Audit Logs");
-
-      // Set column widths
-      ws["!cols"] = [
-        { wch: 15 }, // Plate
-        { wch: 20 }, // Name
-        { wch: 12 }, // Role
-        { wch: 12 }, // Type
-        { wch: 15 }, // Vehicle Type
-        { wch: 20 }, // Time
-        { wch: 15 }, // Date
-      ];
-
-      // Generate Excel file
-      const wbout = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
-      const filename = `Campus_AuditLogs_${new Date().toISOString().split("T")[0]}.xlsx`;
-
-      if (Platform.OS === "web") {
-        XLSX.writeFile(wb, filename);
-        setSuccessMessage(
-          `Export successful! Total entries: ${excelData.length}. The file has been downloaded.`,
-        );
-      } else {
-        // For mobile, save to file system and share
-        try {
-          // Request permissions for Android before writing
-          if (Platform.OS === "android") {
-            const { status } = await MediaLibrary.requestPermissionsAsync();
-            if (status !== "granted") {
-              setErrorMessage(
-                "Permission denied. Please grant storage permission to export files.",
-              );
-              setLoadingAnalytics(false);
-              return;
-            }
-          }
-
-          const fileUri = (FileSystem.cacheDirectory || FileSystem.documentDirectory) + filename;
-          
-          await FileSystem.writeAsStringAsync(fileUri, wbout, {
-            encoding: "base64",
-          });
-
-          if (await Sharing.isAvailableAsync()) {
-            await Sharing.shareAsync(fileUri, {
-              mimeType:
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-              dialogTitle: "Export Audit Logs",
-            });
-            setSuccessMessage(
-              `Export successful! Total entries: ${excelData.length}`,
-            );
-          } else {
-            setErrorMessage("Sharing is not available on this device");
-          }
-        } catch (fsError: any) {
-          console.error("FileSystem Error:", fsError);
-          setErrorMessage(`FileSystem Error: ${fsError.message}`);
-        }
-      }
-    } catch (error: any) {
-      console.error("Error exporting audit logs:", error);
-      setErrorMessage(`Export failed: ${error?.message || "Unknown error"}`);
-    } finally {
-      setLoadingAnalytics(false);
-    }
   };
 
   const handleNewAccountChange = (field: string, value: string) => {
@@ -1104,23 +958,9 @@ export default function AdminScreen() {
 
     return (
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.auditLogsHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.screenTitle}>Master Audit Logs</Text>
-            <Text style={styles.screenSubtitle}>Campus-wide vehicle activity</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.exportButton}
-            onPress={handleExportAuditLogs}
-            disabled={loadingAnalytics}
-          >
-            <Ionicons
-              name="download"
-              size={20}
-              color="#fff"
-            />
-            <Text style={styles.exportButtonText}>Export</Text>
-          </TouchableOpacity>
+        <View>
+          <Text style={styles.screenTitle}>Master Audit Logs</Text>
+          <Text style={styles.screenSubtitle}>Campus-wide vehicle activity</Text>
         </View>
 
         <View style={styles.searchBox}>
@@ -3846,29 +3686,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "700",
     fontSize: 14,
-  },
-  // ── Excel Export Styles ──────────────────────────────────────────
-  auditLogsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
-    gap: 12,
-  },
-  exportButton: {
-    backgroundColor: "#1f8e4d",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    justifyContent: "center",
-    minHeight: 44,
-  },
-  exportButtonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 13,
   },
 });
