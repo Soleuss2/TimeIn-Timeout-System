@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import * as FileSystem from "expo-file-system";
+import * as MediaLibrary from "expo-media-library";
+import * as FileSystem from "expo-file-system/legacy";
 import * as XLSX from "xlsx";
 import React, {
   useState,
@@ -459,7 +460,19 @@ export default function AdminScreen() {
       } else {
         // For mobile, save to file system and share
         try {
-          const fileUri = ((FileSystem as any).cacheDirectory || (FileSystem as any).documentDirectory) + filename;
+          // Request permissions for Android before writing
+          if (Platform.OS === "android") {
+            const { status } = await MediaLibrary.requestPermissionsAsync();
+            if (status !== "granted") {
+              setErrorMessage(
+                "Permission denied. Please grant storage permission to export files.",
+              );
+              setLoadingAnalytics(false);
+              return;
+            }
+          }
+
+          const fileUri = (FileSystem.cacheDirectory || FileSystem.documentDirectory) + filename;
           
           await FileSystem.writeAsStringAsync(fileUri, wbout, {
             encoding: "base64",
