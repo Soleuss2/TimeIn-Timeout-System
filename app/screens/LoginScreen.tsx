@@ -32,7 +32,7 @@ export default function LoginScreen() {
   const isLargeScreen = width >= 768; // Tablets
   const isShortScreen = height < 600; // Short screens
   const isExtraTallScreen = height > 800; // Extra tall screens
-  
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -305,7 +305,7 @@ export default function LoginScreen() {
                       isLargeScreen && { fontSize: 13 },
                     ]}
                   >
-                    Campus Access
+                    Campus Accesss
                   </Text>
                   <Text
                     style={[
